@@ -32,8 +32,7 @@ router.post('/run', async (req, res) => {
       naturalLanguage,
       loraInput: (req.body.loraInput || '').trim(),
       modelTranslate: (req.body.modelTranslate || DEFAULTS.modelTranslate).trim(),
-      modelValidate: (req.body.modelValidate || DEFAULTS.modelValidate).trim(),
-      modelFormat: (req.body.modelFormat || DEFAULTS.modelFormat).trim()
+      modelValidate: (req.body.modelValidate || DEFAULTS.modelValidate).trim()
     });
 
     res.json({ ok: true, ...result });

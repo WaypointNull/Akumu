@@ -6,7 +6,9 @@ const {
   getAliasMap,
   resolveTag
 } = require('../src/services/tagListService');
-const { buildIndex, resolve } = require('../src/services/tagRetrievalService');
+const { buildIndex, resolve, buildConceptCandidates } = require('../src/services/tagRetrievalService');
+const { canonicalizeConcepts } = require('../src/services/canonicalizeService');
+const { resolveWithRules } = require('../src/services/resolutionRules');
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const CASES_FILE = path.join(DATA_DIR, 'benchmark-cases.json');
@@ -230,6 +232,164 @@ function run() {
   console.log('');
 }
 
+async function runPhaseC() {
+  const cases = loadCases();
+  const targets = cases.filter((c) => resolve(c.input).status === 'unknown');
+  if (!targets.length) {
+    console.log('\n=== Phase C offline eval ===');
+    console.log('No unresolved cases to canonicalize.');
+    return;
+  }
+
+  const model = process.env.PHASE_C_MODEL || 'qwen2.5:7b';
+  console.log('\n=== Phase C offline eval ===');
+  console.log('Model:', model);
+  console.log('Targets:', targets.length, '(frozen unresolved cases)');
+
+  const concepts = targets.map((c, i) => ({
+    index: i,
+    original: c.input,
+    candidates: buildConceptCandidates(c.input)
+  }));
+
+  const startedAt = Date.now();
+  const result = await canonicalizeConcepts({ concepts, model });
+  const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
+
+  const metrics = {
+    total: targets.length,
+    recovered: 0,
+    incorrect: 0,
+    skipped: 0,
+    recoveredOutOfList: 0,
+    expectedInCandidates: 0,
+    outOfListProposed: 0,
+    acceptedOutOfList: 0,
+    rejected: 0
+  };
+  const incorrectSamples = [];
+  const recoveredSamples = [];
+
+  for (const concept of result.concepts) {
+    const target = targets[concept.index];
+    const expected = target.expected;
+    const candidateSet = new Set(concept.candidates.map((x) => x.tag));
+    const acceptedTags = concept.accepted.map((a) => a.tag);
+
+    if (candidateSet.has(expected)) metrics.expectedInCandidates++;
+
+    metrics.outOfListProposed += concept.proposed.filter((t) => !candidateSet.has(resolveTag(t).tag)).length;
+    metrics.acceptedOutOfList += concept.accepted.filter((a) => a.outOfList).length;
+    metrics.rejected += concept.rejected.length;
+
+    if (acceptedTags.includes(expected)) {
+      metrics.recovered++;
+      if (!candidateSet.has(expected)) metrics.recoveredOutOfList++;
+      if (recoveredSamples.length < 10) {
+        recoveredSamples.push({ input: target.input, expected, got: acceptedTags, outOfList: !candidateSet.has(expected) });
+      }
+    } else if (acceptedTags.length) {
+      metrics.incorrect++;
+      if (incorrectSamples.length < 10) {
+        incorrectSamples.push({ input: target.input, expected, got: acceptedTags, proposed: concept.proposed });
+      }
+    } else {
+      metrics.skipped++;
+    }
+  }
+
+  console.log(`Elapsed: ${elapsed}s (${result.batches} batched LLM calls)`);
+  const rows = [
+    ['Recovered (expected in accepted)', metrics.recovered, pct(metrics.recovered, metrics.total)],
+    ['  of which expected NOT in candidates', metrics.recoveredOutOfList, pct(metrics.recoveredOutOfList, metrics.recovered)],
+    ['Incorrect (accepted but wrong)', metrics.incorrect, pct(metrics.incorrect, metrics.total)],
+    ['Skipped (SKIP / no output)', metrics.skipped, pct(metrics.skipped, metrics.total)]
+  ];
+  printTable(['Metric', 'Count', 'Rate'], rows);
+
+  console.log('\nCandidate coverage (expected tag in retrieval list):', metrics.expectedInCandidates, `(${pct(metrics.expectedInCandidates, metrics.total)})`);
+  console.log('\nDeviation monitoring:');
+  console.log('  out-of-list proposals:', metrics.outOfListProposed);
+  console.log('  accepted out-of-list:', metrics.acceptedOutOfList);
+  console.log('  rejected proposals:', metrics.rejected);
+
+  console.log('\nRecovered samples:');
+  for (const s of recoveredSamples) {
+    console.log(`  ${s.input} -> ${s.got.join(', ')} (expected ${s.expected})${s.outOfList ? ' [OUT-OF-LIST]' : ''}`);
+  }
+
+  console.log('\nIncorrect (precision danger - must review):');
+  if (incorrectSamples.length === 0) {
+    console.log('  none');
+  } else {
+    for (const s of incorrectSamples) console.log(`  ${s.input} -> ${s.got.join(', ')} (expected ${s.expected})`);
+  }
+  console.log('');
+}
+
+function runRules() {
+  const cases = loadCases();
+  const overall = { total: cases.length, recovered: 0, wrong: 0, unresolved: 0 };
+  const byCategory = new Map();
+  let rulesHit = 0;
+  let rulesWrong = 0;
+  const wrongSamples = [];
+  const recoveredSamples = [];
+
+  for (const c of cases) {
+    const r = resolve(c.input);
+    let outcome;
+    if (r.tag === c.expected) {
+      outcome = 'recovered';
+    } else if (r.status === 'unknown') {
+      const rule = resolveWithRules(c.input);
+      if (rule) {
+        rulesHit++;
+        const tags = [rule.tag, ...(rule.extraTags || [])];
+        if (tags.length === 1 && tags[0] === c.expected) {
+          outcome = 'recovered';
+          if (recoveredSamples.length < 10) recoveredSamples.push({ input: c.input, got: tags[0], expected: c.expected });
+        } else {
+          outcome = 'wrong';
+          rulesWrong++;
+          if (wrongSamples.length < 10) wrongSamples.push({ input: c.input, got: tags, expected: c.expected });
+        }
+      } else {
+        outcome = 'unresolved';
+      }
+    } else {
+      outcome = 'wrong';
+    }
+    overall[outcome]++;
+
+    if (!byCategory.has(c.category)) byCategory.set(c.category, { total: 0, recovered: 0, wrong: 0, unresolved: 0 });
+    const cat = byCategory.get(c.category);
+    cat.total++;
+    cat[outcome]++;
+  }
+
+  console.log('\n=== Danbooru Resolution Benchmark (rules mode) ===');
+  const rows = [];
+  for (const [category, cat] of byCategory) {
+    rows.push([category, cat.total, cat.recovered, cat.wrong, cat.unresolved, pct(cat.recovered, cat.total)]);
+  }
+  rows.push(['OVERALL', overall.total, overall.recovered, overall.wrong, overall.unresolved, pct(overall.recovered, overall.total)]);
+  printTable(['Category', 'Total', 'Recovered', 'Wrong', 'Unresolved', 'Rate'], rows);
+
+  console.log('\nRules applied:', rulesHit, '| rule-induced wrong:', rulesWrong);
+
+  console.log('\nRecovered by rules:');
+  for (const s of recoveredSamples) console.log(`  ${s.input} -> ${s.got} (expected ${s.expected})`);
+
+  console.log('\nWrong (rules inject non-expected tag - must be 0):');
+  if (wrongSamples.length === 0) {
+    console.log('  none');
+  } else {
+    for (const s of wrongSamples) console.log(`  ${s.input} -> ${s.got.join(', ')} (expected ${s.expected})`);
+  }
+  console.log('');
+}
+
 const [command] = process.argv.slice(2);
 
 (async () => {
@@ -240,6 +400,10 @@ const [command] = process.argv.slice(2);
     generate();
   } else if (command === 'run') {
     run();
+  } else if (command === 'phase-c') {
+    await runPhaseC();
+  } else if (command === 'rules') {
+    runRules();
   } else {
     if (!fs.existsSync(CASES_FILE)) generate();
     run();

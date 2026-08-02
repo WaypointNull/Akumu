@@ -9,6 +9,8 @@ const {
 const { ollamaGenerate } = require('./ollamaService');
 const { getTagSet } = require('./tagListService');
 const { resolve } = require('./tagRetrievalService');
+const { canonicalizeConcepts } = require('./canonicalizeService');
+const { resolveWithRules } = require('./resolutionRules');
 const fs = require('fs');
 const path = require('path');
 const {
@@ -38,8 +40,9 @@ function appendAmbiguousLog(entry) {
   }
 }
 
-function resolvePipelineTags(rawTags, naturalLanguage) {
+async function resolvePipelineTags(rawTags, naturalLanguage, { modelCanonicalize, enableCanonicalize = false } = {}) {
   const records = [];
+  const pending = [];
   for (const original of rawTags) {
     if (KNOWN_PROMPT_TAGS.has(original)) {
       records.push({ original, tag: original, status: 'kept', action: 'kept' });
@@ -67,27 +70,74 @@ function resolvePipelineTags(rawTags, naturalLanguage) {
         margin: r.margin,
         candidates: r.candidates
       });
-    } else if (r.candidates && r.candidates.length) {
-      records.push({ original, tag: original, status: 'ambiguous', action: 'ambiguous', candidates: r.candidates });
-      const entry = {
-        ts: new Date().toISOString(),
-        request: naturalLanguage,
-        input: original,
-        candidates: r.candidates.slice(0, 10).map((c) => ({
-          tag: c.tag,
-          score: +c.score.toFixed(3),
-          stripMatch: !!c.stripMatch
-        }))
-      };
-      appendAmbiguousLog(entry);
-      console.warn(
-        `[ambiguous] "${original}" (request: "${naturalLanguage}") -> ${entry.candidates
-          .slice(0, 5)
-          .map((c) => `${c.tag}(${c.score})`)
-          .join(', ')} ...`
-      );
     } else {
-      records.push({ original, tag: original, status: 'unknown', action: 'kept' });
+      const rule = resolveWithRules(original);
+      if (rule) {
+        records.push({
+          original,
+          tag: rule.tag,
+          extraTags: rule.extraTags,
+          status: 'rule',
+          action: 'rule'
+        });
+        console.warn(`[rule] "${original}" -> ${[rule.tag, ...(rule.extraTags || [])].join(', ')}`);
+      } else if (r.candidates && r.candidates.length) {
+        const pendingIndex = pending.length;
+        records.push({ original, tag: original, status: 'ambiguous', action: 'ambiguous', candidates: r.candidates, pendingIndex });
+        pending.push({ index: pendingIndex, original, candidates: r.candidates });
+        const entry = {
+          ts: new Date().toISOString(),
+          request: naturalLanguage,
+          input: original,
+          candidates: r.candidates.slice(0, 10).map((c) => ({
+            tag: c.tag,
+            score: +c.score.toFixed(3),
+            stripMatch: !!c.stripMatch
+          }))
+        };
+        appendAmbiguousLog(entry);
+        console.warn(
+          `[ambiguous] "${original}" (request: "${naturalLanguage}") -> ${entry.candidates
+            .slice(0, 5)
+            .map((c) => `${c.tag}(${c.score})`)
+            .join(', ')} ...`
+        );
+      } else {
+        records.push({ original, tag: original, status: 'unknown', action: 'kept' });
+      }
+    }
+  }
+
+  if (enableCanonicalize && pending.length && modelCanonicalize) {
+    try {
+      const resolvedTags = records
+        .filter((r) => r.status === 'kept' || r.status === 'alias' || r.status === 'retrieved')
+        .map((r) => r.tag);
+      const result = await canonicalizeConcepts({
+        request: naturalLanguage,
+        resolvedTags,
+        concepts: pending,
+        model: modelCanonicalize
+      });
+      for (const concept of result.concepts) {
+        const record = records.find((r) => r.pendingIndex === concept.index);
+        if (!record) continue;
+        if (concept.status === 'resolved') {
+          record.tag = concept.accepted[0].tag;
+          record.extraTags = concept.accepted.slice(1).map((a) => a.tag);
+          record.status = 'canonicalized';
+          record.action = 'canonicalized';
+          record.proposed = concept.proposed;
+          record.rejected = concept.rejected;
+          console.warn(
+            `[phase-c] canonicalized "${record.original}" -> ${[record.tag, ...(record.extraTags || [])].join(', ')}`
+          );
+        } else {
+          console.warn(`[phase-c] unresolved after canonicalization: "${record.original}" (SKIP/no output)`);
+        }
+      }
+    } catch (error) {
+      console.warn('[phase-c] canonicalization failed:', error.message);
     }
   }
   return records;
@@ -102,12 +152,17 @@ function formatResolutionSummary(records) {
   if (counts.kept) lines.push(`${counts.kept} kept (exact match)`);
   if (counts.alias) lines.push(`${counts.alias} alias -> canonical`);
   if (counts.retrieved) lines.push(`${counts.retrieved} auto-replaced (retrieval)`);
+  if (counts.rule) lines.push(`${counts.rule} resolved by curated rules`);
+  if (counts.canonicalized) lines.push(`${counts.canonicalized} canonicalized (Phase C)`);
   if (counts.ambiguous) lines.push(`${counts.ambiguous} ambiguous (kept original, logged)`);
   if (counts.unknown) lines.push(`${counts.unknown} unknown (kept original)`);
 
-  const replaced = records.filter((r) => r.status === 'alias' || r.status === 'retrieved');
+  const replaced = records.filter((r) => r.status === 'alias' || r.status === 'retrieved' || r.status === 'rule' || r.status === 'canonicalized');
   if (replaced.length) {
-    lines.push('Replacements: ' + replaced.map((r) => `${r.original} -> ${r.tag}`).join(', '));
+    lines.push(
+      'Replacements: ' +
+        replaced.map((r) => `${r.original} -> ${[r.tag, ...(r.extraTags || [])].join(', ')}`).join('; ')
+    );
   }
   const amb = records.filter((r) => r.status === 'ambiguous');
   if (amb.length) {
@@ -116,12 +171,9 @@ function formatResolutionSummary(records) {
   return lines.join('\n');
 }
 
-async function runSinglePipeline({ naturalLanguage, loraInput = '', modelTranslate, modelValidate, modelFormat }) {
+async function runSinglePipeline({ naturalLanguage, loraInput = '', modelTranslate, modelValidate }) {
   const selectedModelTranslate = (modelTranslate || DEFAULTS.modelTranslate).trim();
   const selectedModelValidate = (modelValidate || DEFAULTS.modelValidate).trim();
-  const selectedModelFormat = (modelFormat || DEFAULTS.modelFormat).trim();
-
-  const loraTags = parseLoraInput(loraInput);
 
   const pass1System = [
     'Translate natural language image descriptions into existing Danbooru tags.',
@@ -148,11 +200,13 @@ async function runSinglePipeline({ naturalLanguage, loraInput = '', modelTransla
 
   const candidates = buildCandidatesFromTagList(pass1Tags, naturalLanguage, getTagSet());
 
-  const resolution = resolvePipelineTags(pass1Tags, naturalLanguage);
+  const resolution = await resolvePipelineTags(pass1Tags, naturalLanguage, {
+    modelCanonicalize: selectedModelValidate
+  });
   const pass2Summary = formatResolutionSummary(resolution);
   let validatedTags = dedupeKeepOrder(
     resolution
-      .map((r) => r.tag)
+      .flatMap((r) => [r.tag, ...(r.extraTags || [])])
       .filter((tag) => getTagSet().has(tag))
       .filter((tag) => !isSectionLabel(tag))
       .filter((tag) => isUsableTag(tag))
@@ -162,40 +216,28 @@ async function runSinglePipeline({ naturalLanguage, loraInput = '', modelTransla
     validatedTags = dedupeKeepOrder([...validatedTags, ...candidates]).slice(0, 60);
   }
 
-  const pass3System = [
-    'Format final image prompts for WaiIllustrious SDXL.',
-    'Output exactly these sections:',
-    'GLOBAL_POSITIVE:',
-    'GLOBAL_NEGATIVE:',
-    'Use comma-separated tags only under each section.',
-    'Do not output a separate LoRA section.',
-    'No explanations.'
-  ].join(' ');
+  const promptTags = dedupeKeepOrder([
+    ...validatedTags,
+    ...candidates,
+    ...inferTagsFromText(naturalLanguage)
+  ])
+    .filter((tag) => isUsableTag(tag))
+    .slice(0, 85);
 
-  const pass3Prompt = [
-    `Request: ${naturalLanguage}`,
-    `Validated tags: ${validatedTags.join(', ')}`,
-    `Inline LoRA tags (must stay in GLOBAL_POSITIVE): ${loraTags.join(', ') || '(none)'}`,
-    `Mandatory positive tags: ${REQUIRED_POSITIVE.join(', ')}`,
-    `Mandatory negative tags: ${REQUIRED_NEGATIVE.join(', ')}`,
-    'Return only GLOBAL_POSITIVE and GLOBAL_NEGATIVE sections.'
-  ].join('\n');
-
-  const pass3Raw = await ollamaGenerate(selectedModelFormat, pass3System, pass3Prompt, 0.1);
-  const normalized = normalizeFinalOutput(pass3Raw, pass1Tags, validatedTags, loraTags, naturalLanguage, candidates);
+  const formatted = formatFinalOutput({ promptTags, loraInput });
 
   return {
     models: {
       modelTranslate: selectedModelTranslate,
       modelValidate: selectedModelValidate,
-      modelFormat: selectedModelFormat
+      modelFormat: null
     },
     passes: {
       translate: pass1Raw,
       validate: pass2Summary,
-      format: pass3Raw
+      format: '[deterministic] boilerplate formatter applied (no LLM)'
     },
-    final: normalized
+    final: formatted
   };
 }
 
@@ -299,80 +341,42 @@ function buildCandidatesFromTagList(rawTags, naturalLanguage, allowedTags) {
   return dedupeKeepOrder([...candidates, ...inferred]).filter((tag) => isUsableTag(tag)).slice(0, 120);
 }
 
-function normalizeFinalOutput(rawFormatted, pass1Tags, validatedTags, loraTags, naturalLanguage, candidates) {
-  const sections = extractSections(rawFormatted);
-  const inferred = inferTagsFromText(naturalLanguage);
-
-  const rawPositive = splitTags(sections.GLOBAL_POSITIVE || '');
-  let positive = dedupeKeepOrder([...pass1Tags, ...validatedTags, ...candidates, ...inferred, ...rawPositive]).slice(0, 180);
-  let negative = splitTags(sections.GLOBAL_NEGATIVE || '');
-
-  positive = dedupeKeepOrder([
-    ...REQUIRED_POSITIVE,
-    ...loraTags,
-    ...positive.filter((tag) => !REQUIRED_NEGATIVE.includes(tag)),
-    ...POSITIVE_FILLER
-  ]);
-
-  positive = positive
-    .filter((tag) => tag.startsWith('<lora:') || isUsableTag(tag))
-    .filter((tag) => shouldKeepPositiveTag(tag));
-
-  if (positive.length > 85) {
-    positive = positive.slice(0, 85);
-  }
-
-  negative = dedupeKeepOrder([
-    ...REQUIRED_NEGATIVE,
-    ...negative.filter((tag) => !REQUIRED_POSITIVE.includes(tag)),
-    ...EXTRA_NEGATIVE
-  ]).filter((tag) => isUsableTag(tag));
-
-  if (negative.length > 45) {
-    negative = negative.slice(0, 45);
-  }
-
-  const positiveText = formatTagBlock(positive);
-  const negativeText = formatTagBlock(negative);
-
-  return {
-    positiveTags: positive,
-    negativeTags: negative,
-    globalPositiveText: positiveText,
-    globalNegativeText: negativeText,
-    finalText: `GLOBAL_POSITIVE:\n${positiveText}\n\nGLOBAL_NEGATIVE:\n${negativeText}`
-  };
+function buildPositiveBoilerplate() {
+  return dedupeKeepOrder([...REQUIRED_POSITIVE, ...POSITIVE_FILLER]);
 }
 
-function shouldKeepPositiveTag(tag) {
-  if (tag.startsWith('<lora:')) {
-    return true;
+function buildNegativeBoilerplate() {
+  return dedupeKeepOrder([...REQUIRED_NEGATIVE, ...EXTRA_NEGATIVE]);
+}
+
+function formatFinalOutput({ promptTags, loraInput, cap = 85 }) {
+  const positiveBoilerplate = buildPositiveBoilerplate();
+  const negativeBoilerplate = buildNegativeBoilerplate();
+
+  const contentTags = dedupeKeepOrder(promptTags || [])
+    .filter((tag) => isUsableTag(tag))
+    .filter((tag) => !positiveBoilerplate.includes(tag))
+    .slice(0, cap);
+
+  const positiveTags = dedupeKeepOrder([...positiveBoilerplate, ...contentTags]);
+  const boilerplatePositiveText = formatTagBlock(positiveBoilerplate);
+  const promptText = formatTagBlock(contentTags);
+  const loraTriggers = (loraInput || '').trim();
+
+  const positiveBlocks = [boilerplatePositiveText, promptText];
+  if (loraTriggers) {
+    positiveBlocks.push(loraTriggers);
   }
-  if (REQUIRED_POSITIVE.includes(tag)) {
-    return true;
-  }
-  if (STYLE_BOOSTERS.has(tag)) {
-    return true;
-  }
-  if (tag === 'neeko_(league_of_legends)' || tag === 'league_of_legends') {
-    return true;
-  }
-  if (tag.length <= 2) {
-    return false;
-  }
-  if (/^\d+$/.test(tag)) {
-    return false;
-  }
-  if (/^(no|not|and|or|the|with|for|from|into)$/.test(tag)) {
-    return false;
-  }
-  if (/^[a-z]$/.test(tag)) {
-    return false;
-  }
-  if (/^[a-z]{2}$/.test(tag) && !/^(on|at|in|up|of|to)$/.test(tag)) {
-    return false;
-  }
-  return /^[a-z0-9_()'\-]+$/.test(tag);
+  const globalPositiveText = positiveBlocks.join('\n\n');
+  const globalNegativeText = formatTagBlock(negativeBoilerplate);
+
+  return {
+    positiveTags,
+    negativeTags: negativeBoilerplate,
+    globalPositiveText,
+    globalNegativeText,
+    finalText: `Global Positive:\n${globalPositiveText}\n\nGlobal Negative:\n${globalNegativeText}`
+  };
 }
 
 function inferTagsFromText(text) {
@@ -409,16 +413,6 @@ function inferTagsFromText(text) {
 
   inferred.push('1girl');
   return dedupeKeepOrder(inferred);
-}
-
-function extractSections(text) {
-  const source = text || '';
-  const positiveMatch = source.match(/GLOBAL_POSITIVE\s*:\s*([\s\S]*?)(GLOBAL_NEGATIVE\s*:|$)/i);
-  const negativeMatch = source.match(/GLOBAL_NEGATIVE\s*:\s*([\s\S]*)$/i);
-  return {
-    GLOBAL_POSITIVE: positiveMatch ? positiveMatch[1].trim() : '',
-    GLOBAL_NEGATIVE: negativeMatch ? negativeMatch[1].trim() : ''
-  };
 }
 
 function parseRegionalText(text) {

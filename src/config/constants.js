@@ -123,7 +123,6 @@ const RETRIEVAL = {
 const DEFAULTS = {
   modelTranslate: 'qwen2.5:7b',
   modelValidate: 'qwen2.5:7b',
-  modelFormat: 'qwen2.5:7b',
   modelGlobal: 'qwen2.5:7b',
   modelRegional: 'qwen2.5:7b'
 };

@@ -175,6 +175,26 @@ function retrieve(query, { limit = RETRIEVAL.resultLimit } = {}) {
   }));
 }
 
+function buildConceptCandidates(concept, { limit = 20 } = {}) {
+  const key = normalizeTag(concept);
+  if (!key) return [];
+  const byTag = new Map();
+  const absorb = (list) => {
+    for (const c of list) {
+      if (!byTag.has(c.tag)) byTag.set(c.tag, c);
+    }
+  };
+  absorb(retrieve(key, { limit }));
+  if (key.includes('_')) {
+    const parts = key.split('_').filter(Boolean);
+    for (const part of parts) {
+      absorb(retrieve(part, { limit: Math.max(5, Math.ceil((limit * 1.5) / parts.length)) }));
+    }
+  }
+  const out = [...byTag.values()].sort((a, b) => b.score - a.score);
+  return out.slice(0, limit);
+}
+
 function resolve(query) {
   const pre = resolveTag(query);
   if (pre.status !== 'unknown') return pre;
@@ -215,5 +235,6 @@ function resolve(query) {
 module.exports = {
   buildIndex,
   retrieve,
-  resolve
+  resolve,
+  buildConceptCandidates
 };

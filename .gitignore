@@ -1,3 +1,6 @@
 node_modules/
-benchmark-cases.json
-ambiguous-log.ndjson
+
+# Ignore all files inside data/ except danbooru-tags.txt
+data/*
+!data/
+!data/danbooru-tags.txt
