@@ -1,5 +1,4 @@
 const { buildPass1System, buildPass1Prompt } = require('../templates');
-const { inferTagsFromText } = require('../inference');
 const { dedupeKeepOrder } = require('../../../shared/list');
 const { splitTags, isSectionLabel, isUsableTag } = require('../../tag-resolution');
 const { FORMAT } = require('../../../config/constants');
@@ -10,16 +9,14 @@ async function translate(naturalLanguage, { model }, deps) {
   return { raw, tags };
 }
 
-function candidatesFromTagList(rawTags, naturalLanguage, allowedTags) {
+function candidatesFromTagList(rawTags, allowedTags) {
   const candidates = [];
   for (const tag of rawTags) {
     if (allowedTags.has(tag)) {
       candidates.push(tag);
     }
   }
-
-  const inferred = inferTagsFromText(naturalLanguage).filter((tag) => allowedTags.has(tag));
-  return dedupeKeepOrder([...candidates, ...inferred])
+  return dedupeKeepOrder(candidates)
     .filter((tag) => isUsableTag(tag))
     .slice(0, FORMAT.candidateCap);
 }

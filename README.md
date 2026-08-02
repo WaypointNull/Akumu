@@ -77,19 +77,18 @@ Open:
 - `src/routes/apiRoutes.js`: API routes (the composition root — the only place modules are wired together).
 - `src/config/constants.js`: tunable configuration (ports, URLs, tag lists, retrieval tuning, model defaults, Comfy defaults, format caps).
 - `src/shared/list.js`: domain-free utils only (`dedupeKeepOrder`); no domain imports.
-- `src/modules/tag-resolution/`: leaf module — `parser.js` (normalize/split/CSV), `metrics.js` (trigram + Damerau-Levenshtein), `repository.js` (tag set/alias tables), `aliases.js` (resolution rules), `retrieval.js` (BM25 index + fuzzy resolution). Depends only on `config`/`shared`.
+- `src/modules/tag-resolution/`: leaf module — `parser.js` (normalize/split/CSV), `metrics.js` (trigram + Damerau-Levenshtein), `repository.js` (tag set/alias tables), `retrieval.js` (BM25 index + fuzzy resolution). Depends only on `config`/`shared`.
 - `src/modules/llm/`: leaf module — `ollama.js` thin Ollama client.
-- `src/modules/prompt-engine/`: module — `orchestrator.js` composes the single-pipeline from swappable stages under `stages/`, plus `templates.js`, `regionalText.js`, `inference.js` (heuristics loaded from `tag-inference.json`), `formatter.js`, and `canonicalize/` (`text.js` pure Phase C builders, `service.js` LLM-driven canonicalization).
+- `src/modules/prompt-engine/`: module — `orchestrator.js` composes the single-pipeline from swappable stages under `stages/`, plus `templates.js`, `regionalText.js`, `formatter.js`, and `canonicalize/` (`text.js` pure Phase C builders, `service.js` LLM-driven canonicalization).
   - `stages/infer.js`: natural-language → booru tags (`translate`) + candidate extraction (`candidatesFromTagList`).
-  - `stages/retrieve.js`: deterministic tag resolution against the tag list/aliases/rules (`resolveAll`, with ambiguous-tag logging).
+  - `stages/retrieve.js`: deterministic tag resolution against the tag list/aliases (`resolveAll`, with ambiguous-tag logging).
   - `stages/canonicalize.js`: optional LLM-driven Phase C disambiguation of ambiguous tags (`apply`, no-op unless enabled).
   - `stages/regional.js`: global/regional/mask LLM prompt generation (`generateGlobalPrompt`, `generateRegionalPrompts`, `generateMaskPosePrompt`).
   - `stages/format.js`: resolution summary + final output (`finalize`).
 - `src/modules/comfy/`: module — `svg.js` (SVG mask generation), `workflow.js` (Comfy graph), `client.js` (prompt submit + history poll), `discovery.js` (local ComfyUI discovery).
 - `src/modules/regional-painter/`: module — `jobService.js` (regional job orchestration, Comfy submission, simple masks).
-- `src/modules/benchmark/`: module — `datasets.js` (corpus/cases), `generator.js` (corruption case generation), `scorer.js` (offline scoring, Phase C and rules evals).
-- `src/modules/rules-learning/`: module — `logs.js` (tally unresolved inputs), `annotate.js` (LLM review prompt + annotation parsing), `suggestions.js` (auto/review collection and applying rules to `resolutions.json`).
-- `scripts/*`: thin CLIs over the above (benchmark, rule learning).
+- `src/modules/benchmark/`: module — `datasets.js` (corpus/cases), `generator.js` (corruption case generation), `scorer.js` (offline scoring and Phase C evals).
+- `scripts/*`: thin CLIs over the above (benchmark).
 - `docs/ARCHITECTURE.md`: how modules and folders are organized, and how to add a new stage.
 
 The organizing principle is **module-first**: everything is a module that works on its own and can be swapped in/out, and the folder structure reflects that. The target module layout (`src/modules/*`) is in `docs/ARCHITECTURE.md`; the tree above is the current layout while that move is pending. Every module exposes a public interface via `index.js` and imports other modules only through it.

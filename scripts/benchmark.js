@@ -1,6 +1,6 @@
 const fs = require('fs');
 const { createContainer } = require('../src/container');
-const { generate, run, runPhaseC, runRules, CASES_FILE } = require('../src/modules/benchmark');
+const { generate, run, runPhaseC, runFormat, CASES_FILE } = require('../src/modules/benchmark');
 
 const [command] = process.argv.slice(2);
 
@@ -15,8 +15,8 @@ const [command] = process.argv.slice(2);
     run(deps);
   } else if (command === 'phase-c') {
     await runPhaseC(deps);
-  } else if (command === 'rules') {
-    runRules(deps);
+  } else if (command === 'format') {
+    runFormat(deps);
   } else {
     if (!fs.existsSync(CASES_FILE)) generate(deps);
     run(deps);

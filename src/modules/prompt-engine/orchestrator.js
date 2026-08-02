@@ -10,7 +10,7 @@ async function runSinglePipeline({ naturalLanguage, loraInput = '', modelTransla
   const tagSet = deps.repository.getTagSet();
 
   const translated = await infer.translate(naturalLanguage, { model: selectedModelTranslate }, deps);
-  const candidates = infer.candidatesFromTagList(translated.tags, naturalLanguage, tagSet);
+  const candidates = infer.candidatesFromTagList(translated.tags, tagSet);
   const resolution = retrieve.resolveAll(translated.tags, naturalLanguage, deps);
   const records = await canonicalize.apply(
     resolution.records,
@@ -19,7 +19,7 @@ async function runSinglePipeline({ naturalLanguage, loraInput = '', modelTransla
     { model: selectedModelValidate, enabled: false },
     deps
   );
-  const { summary, formatted } = format.finalize({ records, candidates, naturalLanguage, loraInput, tagSet });
+  const { summary, formatted } = format.finalize({ records, candidates, loraInput, tagSet });
 
   return {
     models: {

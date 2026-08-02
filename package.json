@@ -16,10 +16,7 @@
     "format:check": "prettier --check .",
     "bench": "node scripts/benchmark.js",
     "bench:phasec": "node scripts/benchmark.js phase-c",
-    "bench:rules": "node scripts/benchmark.js rules",
-    "learn": "node scripts/learn-rules.js",
-    "learn:llm": "node scripts/learn-rules.js --include-logs --llm",
-    "learn:apply": "node scripts/learn-rules.js --apply-auto"
+    "bench:format": "node scripts/benchmark.js format"
   },
   "dependencies": {
     "express": "^4.21.2"

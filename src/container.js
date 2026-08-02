@@ -1,13 +1,12 @@
-const { createTagListRepository, createRetrievalIndex, createRuleTable } = require('./modules/tag-resolution');
+const { createTagListRepository, createRetrievalIndex } = require('./modules/tag-resolution');
 const { createRegionalPainter } = require('./modules/regional-painter');
 const { ollamaGenerate } = require('./modules/llm');
 
 function createContainer() {
   const repository = createTagListRepository();
   const retrieval = createRetrievalIndex({ repository });
-  const ruleTable = createRuleTable({ repository });
   const llm = { ollamaGenerate };
-  const deps = { llm, repository, retrieval, ruleTable };
+  const deps = { llm, repository, retrieval };
   deps.regionalPainter = createRegionalPainter(deps);
   return deps;
 }

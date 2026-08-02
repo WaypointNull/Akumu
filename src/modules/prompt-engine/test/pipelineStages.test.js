@@ -21,8 +21,8 @@ test('infer.translate parses raw tags and drops section labels', async () => {
 
 test('infer.candidatesFromTagList filters, dedupes and caps at 120', () => {
   const rawTags = ['blue_hair', 'not_in_list', 'sitting'];
-  const result = infer.candidatesFromTagList(rawTags, 'a girl sitting on rock', ALLOWED);
-  assert.deepEqual(result, ['blue_hair', 'sitting', 'on_rock', '1girl']);
+  const result = infer.candidatesFromTagList(rawTags, ALLOWED);
+  assert.deepEqual(result, ['blue_hair', 'sitting']);
 });
 
 test('retrieve.resolveAll classifies known, exact, alias, rule and ambiguous tags', () => {
@@ -35,7 +35,6 @@ test('retrieve.resolveAll classifies known, exact, alias, rule and ambiguous tag
   const logPath = path.join(os.tmpdir(), 'ambiguous-log-test.ndjson');
   const deps = {
     retrieval: { resolve: resolver },
-    ruleTable: { resolveWithRules: () => null },
     logPath
   };
   const { records, pending } = retrieve.resolveAll(
@@ -100,17 +99,17 @@ test('canonicalize.apply resolves ambiguous concepts when enabled', async () => 
 test('format.finalize produces summary and capped prompt tags', () => {
   const records = [
     { original: 'blue_hair', tag: 'blue_hair', status: 'kept' },
-    { original: 'blonde_hair', tag: 'blonde_hair', extraTags: ['green_eyes'], status: 'rule' }
+    { original: 'blonde_hair', tag: 'blonde_hair', extraTags: ['green_eyes'], status: 'retrieved' },
+    { original: 'cliff_edge', tag: 'cliff_edge', status: 'ambiguous' }
   ];
   const { summary, formatted } = format.finalize({
     records,
     candidates: [],
-    naturalLanguage: '',
     loraInput: '',
     tagSet: ALLOWED
   });
-  assert.match(summary, /Resolved 2 tags/);
+  assert.match(summary, /Resolved 3 tags/);
   assert.ok(formatted.finalText.includes('Global Positive:'));
   assert.ok(formatted.positiveTags.includes('blue_hair'));
-  assert.ok(formatted.positiveTags.includes('1girl'));
+  assert.ok(formatted.positiveTags.includes('cliff_edge'));
 });

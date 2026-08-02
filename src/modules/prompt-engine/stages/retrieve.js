@@ -30,7 +30,6 @@ function resolveAll(rawTags, naturalLanguage, deps) {
   const records = [];
   const pending = [];
   const resolver = deps.retrieval.resolve;
-  const rules = deps.ruleTable.resolveWithRules;
   const logPath = deps.logPath || AMBIGUOUS_LOG_PATH;
   for (const original of rawTags) {
     if (KNOWN_PROMPT_TAGS.has(original)) {
@@ -59,48 +58,36 @@ function resolveAll(rawTags, naturalLanguage, deps) {
         margin: r.margin,
         candidates: r.candidates
       });
+    } else if (r.candidates && r.candidates.length) {
+      const pendingIndex = pending.length;
+      records.push({
+        original,
+        tag: original,
+        status: 'ambiguous',
+        action: 'ambiguous',
+        candidates: r.candidates,
+        pendingIndex
+      });
+      pending.push({ index: pendingIndex, original, candidates: r.candidates });
+      const entry = {
+        ts: new Date().toISOString(),
+        request: naturalLanguage,
+        input: original,
+        candidates: r.candidates.slice(0, 10).map((c) => ({
+          tag: c.tag,
+          score: +c.score.toFixed(3),
+          stripMatch: !!c.stripMatch
+        }))
+      };
+      appendAmbiguousLog(logPath, entry);
+      console.warn(
+        `[ambiguous] "${original}" (request: "${naturalLanguage}") -> ${entry.candidates
+          .slice(0, 5)
+          .map((c) => `${c.tag}(${c.score})`)
+          .join(', ')} ...`
+      );
     } else {
-      const rule = rules(original);
-      if (rule) {
-        records.push({
-          original,
-          tag: rule.tag,
-          extraTags: rule.extraTags,
-          status: 'rule',
-          action: 'rule'
-        });
-        console.warn(`[rule] "${original}" -> ${[rule.tag, ...(rule.extraTags || [])].join(', ')}`);
-      } else if (r.candidates && r.candidates.length) {
-        const pendingIndex = pending.length;
-        records.push({
-          original,
-          tag: original,
-          status: 'ambiguous',
-          action: 'ambiguous',
-          candidates: r.candidates,
-          pendingIndex
-        });
-        pending.push({ index: pendingIndex, original, candidates: r.candidates });
-        const entry = {
-          ts: new Date().toISOString(),
-          request: naturalLanguage,
-          input: original,
-          candidates: r.candidates.slice(0, 10).map((c) => ({
-            tag: c.tag,
-            score: +c.score.toFixed(3),
-            stripMatch: !!c.stripMatch
-          }))
-        };
-        appendAmbiguousLog(logPath, entry);
-        console.warn(
-          `[ambiguous] "${original}" (request: "${naturalLanguage}") -> ${entry.candidates
-            .slice(0, 5)
-            .map((c) => `${c.tag}(${c.score})`)
-            .join(', ')} ...`
-        );
-      } else {
-        records.push({ original, tag: original, status: 'unknown', action: 'kept' });
-      }
+      records.push({ original, tag: original, status: 'unknown', action: 'kept' });
     }
   }
 

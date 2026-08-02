@@ -1,4 +1,10 @@
-﻿const { canonicalizeConcepts } = require('../prompt-engine');
+﻿const {
+  canonicalizeConcepts,
+  formatFinalOutput,
+  formatTagBlock,
+  buildPositiveBoilerplate,
+  buildNegativeBoilerplate
+} = require('../prompt-engine');
 const { ensureCases } = require('./generator');
 const { CASES_FILE } = require('./datasets');
 
@@ -197,74 +203,66 @@ async function runPhaseC(deps) {
   console.log('');
 }
 
-function runRules(deps) {
+function runFormat(deps) {
   const cases = ensureCases(deps);
-  const overall = { total: cases.length, recovered: 0, wrong: 0, unresolved: 0 };
-  const byCategory = new Map();
-  let rulesHit = 0;
-  let rulesWrong = 0;
-  const wrongSamples = [];
-  const recoveredSamples = [];
+  const positiveBoilerplate = buildPositiveBoilerplate();
+  const negativeBoilerplate = buildNegativeBoilerplate();
 
+  const unique = [];
+  const seen = new Set();
+  let resolvedOutOfRepo = 0;
   for (const c of cases) {
-    const r = deps.retrieval.resolve(c.input);
-    let outcome;
-    if (r.tag === c.expected) {
-      outcome = 'recovered';
-    } else if (r.status === 'unknown') {
-      const rule = deps.ruleTable.resolveWithRules(c.input);
-      if (rule) {
-        rulesHit++;
-        const tags = [rule.tag, ...(rule.extraTags || [])];
-        if (tags.length === 1 && tags[0] === c.expected) {
-          outcome = 'recovered';
-          if (recoveredSamples.length < 10)
-            recoveredSamples.push({ input: c.input, got: tags[0], expected: c.expected });
-        } else {
-          outcome = 'wrong';
-          rulesWrong++;
-          if (wrongSamples.length < 10) wrongSamples.push({ input: c.input, got: tags, expected: c.expected });
-        }
-      } else {
-        outcome = 'unresolved';
-      }
-    } else {
-      outcome = 'wrong';
+    const r = deps.repository.resolveTag(c.expected);
+    if (r.status === 'unknown') {
+      resolvedOutOfRepo++;
+      continue;
     }
-    overall[outcome]++;
-
-    if (!byCategory.has(c.category)) byCategory.set(c.category, { total: 0, recovered: 0, wrong: 0, unresolved: 0 });
-    const cat = byCategory.get(c.category);
-    cat.total++;
-    cat[outcome]++;
+    if (!seen.has(r.tag)) {
+      seen.add(r.tag);
+      unique.push(r.tag);
+    }
   }
 
-  console.log('\n=== Danbooru Resolution Benchmark (rules mode) ===');
-  const rows = [];
-  for (const [category, cat] of byCategory) {
-    rows.push([category, cat.total, cat.recovered, cat.wrong, cat.unresolved, pct(cat.recovered, cat.total)]);
-  }
-  rows.push([
-    'OVERALL',
-    overall.total,
-    overall.recovered,
-    overall.wrong,
-    overall.unresolved,
-    pct(overall.recovered, overall.total)
-  ]);
-  printTable(['Category', 'Total', 'Recovered', 'Wrong', 'Unresolved', 'Rate'], rows);
+  const content = unique.slice(0, 120);
+  const run1 = formatFinalOutput({ promptTags: content });
+  const run2 = formatFinalOutput({ promptTags: content });
+  const deterministic = run1.finalText === run2.finalText;
 
-  console.log('\nRules applied:', rulesHit, '| rule-induced wrong:', rulesWrong);
+  const structureOk =
+    run1.finalText.startsWith('Global Positive:\n') &&
+    run1.finalText.includes('\n\nGlobal Negative:\n') &&
+    run1.globalNegativeText === formatTagBlock(negativeBoilerplate);
 
-  console.log('\nRecovered by rules:');
-  for (const s of recoveredSamples) console.log(`  ${s.input} -> ${s.got} (expected ${s.expected})`);
+  const absorbed = content.filter((t) => positiveBoilerplate.includes(t));
+  const capped = content.slice(0, 85);
+  const survived = capped.every((t) => run1.positiveTags.includes(t) || positiveBoilerplate.includes(t));
 
-  console.log('\nWrong (rules inject non-expected tag - must be 0):');
-  if (wrongSamples.length === 0) {
-    console.log('  none');
-  } else {
-    for (const s of wrongSamples) console.log(`  ${s.input} -> ${s.got.join(', ')} (expected ${s.expected})`);
-  }
+  console.log('\n=== Boilerplate Concat (deterministic Pass 3) ===');
+  console.log('Corpus:', CASES_FILE);
+  console.log(
+    'Cases:',
+    cases.length,
+    '| expected tags resolvable in repo:',
+    unique.length,
+    '| absent:',
+    resolvedOutOfRepo
+  );
+  console.log('Deterministic (two identical runs):', deterministic ? 'yes' : 'NO');
+  console.log('Structure (Global Positive / Global Negative):', structureOk ? 'ok' : 'BROKEN');
+  console.log('Content capped at 85 - all survived:', survived ? 'yes' : 'NO');
+  console.log('Content tags absorbed into boilerplate (dedup):', absorbed.length);
+
+  console.log('\nPass 3 adds these blocks verbatim around the content:');
+  console.log('--- Global Positive boilerplate (' + positiveBoilerplate.length + ' tags) ---');
+  console.log('  ' + positiveBoilerplate.join(', '));
+  console.log('--- Global Negative boilerplate (' + negativeBoilerplate.length + ' tags) ---');
+  console.log('  ' + negativeBoilerplate.join(', '));
+
+  const sampleContent = content.slice(0, 8);
+  console.log('\nSample render (content only):');
+  console.log(formatFinalOutput({ promptTags: sampleContent }).finalText);
+  console.log('\nSample render (with LoRA triggers):');
+  console.log(formatFinalOutput({ promptTags: sampleContent, loraInput: '<lora:Palworld_Sekhmet:1.0>' }).finalText);
   console.log('');
 }
 
@@ -273,5 +271,5 @@ module.exports = {
   printTable,
   run,
   runPhaseC,
-  runRules
+  runFormat
 };

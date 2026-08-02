@@ -25,13 +25,12 @@ function formatResolutionSummary(records) {
   if (counts.kept) lines.push(`${counts.kept} kept (exact match)`);
   if (counts.alias) lines.push(`${counts.alias} alias -> canonical`);
   if (counts.retrieved) lines.push(`${counts.retrieved} auto-replaced (retrieval)`);
-  if (counts.rule) lines.push(`${counts.rule} resolved by curated rules`);
   if (counts.canonicalized) lines.push(`${counts.canonicalized} canonicalized (Phase C)`);
   if (counts.ambiguous) lines.push(`${counts.ambiguous} ambiguous (kept original, logged)`);
   if (counts.unknown) lines.push(`${counts.unknown} unknown (kept original)`);
 
   const replaced = records.filter(
-    (r) => r.status === 'alias' || r.status === 'retrieved' || r.status === 'rule' || r.status === 'canonicalized'
+    (r) => r.status === 'alias' || r.status === 'retrieved' || r.status === 'canonicalized'
   );
   if (replaced.length) {
     lines.push(

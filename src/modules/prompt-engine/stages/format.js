@@ -1,15 +1,18 @@
 const { dedupeKeepOrder } = require('../../../shared/list');
 const { isUsableTag, isSectionLabel } = require('../../tag-resolution');
 const { formatResolutionSummary, formatFinalOutput } = require('../formatter');
-const { inferTagsFromText } = require('../inference');
 const { FORMAT } = require('../../../config/constants');
 
-function finalize({ records, candidates, naturalLanguage, loraInput, tagSet }) {
+function finalize({ records, candidates, loraInput, tagSet }) {
   const summary = formatResolutionSummary(records);
   let validatedTags = dedupeKeepOrder(
     records
-      .flatMap((r) => [r.tag, ...(r.extraTags || [])])
-      .filter((tag) => tagSet.has(tag))
+      .flatMap((r) => {
+        if (r.status === 'kept' || r.status === 'ambiguous' || r.status === 'unknown') {
+          return [r.tag];
+        }
+        return [r.tag, ...(r.extraTags || [])].filter((tag) => tagSet.has(tag));
+      })
       .filter((tag) => !isSectionLabel(tag))
       .filter((tag) => isUsableTag(tag))
   );
@@ -18,7 +21,7 @@ function finalize({ records, candidates, naturalLanguage, loraInput, tagSet }) {
     validatedTags = dedupeKeepOrder([...validatedTags, ...candidates]).slice(0, FORMAT.validatedCap);
   }
 
-  const promptTags = dedupeKeepOrder([...validatedTags, ...candidates, ...inferTagsFromText(naturalLanguage)])
+  const promptTags = dedupeKeepOrder([...validatedTags, ...candidates])
     .filter((tag) => isUsableTag(tag))
     .slice(0, FORMAT.promptTagCap);
 
