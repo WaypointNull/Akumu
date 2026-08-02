@@ -1,0 +1,13 @@
+{
+  "name": "ollama-prompt-workflow-ui",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Three-pass Ollama prompt workflow UI for WaiIllustrious/booru prompts",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}

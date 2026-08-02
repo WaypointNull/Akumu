@@ -1,0 +1,754 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ollama Prompt Workflow UI</title>
+    <style>
+      :root {
+        --bg: #0f1218;
+        --panel: #171d28;
+        --panel-2: #202a39;
+        --text: #e8edf7;
+        --muted: #a6b0c4;
+        --accent: #55d38a;
+        --danger: #ff6b6b;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        font-family: Segoe UI, Arial, sans-serif;
+        background: radial-gradient(circle at 10% 10%, #1c2434, var(--bg));
+        color: var(--text);
+      }
+
+      .wrap {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 24px;
+        display: grid;
+        gap: 16px;
+      }
+
+      .card {
+        background: linear-gradient(180deg, var(--panel), var(--panel-2));
+        border: 1px solid #2d394d;
+        border-radius: 14px;
+        padding: 16px;
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: 24px;
+      }
+
+      .muted {
+        color: var(--muted);
+        margin: 0;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      label {
+        display: block;
+        font-size: 13px;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+
+      input, textarea, button {
+        width: 100%;
+        border-radius: 10px;
+        border: 1px solid #34445f;
+        background: #121825;
+        color: var(--text);
+        padding: 10px;
+        font-size: 14px;
+      }
+
+      textarea { min-height: 120px; resize: vertical; }
+
+      button {
+        cursor: pointer;
+        background: linear-gradient(180deg, #3abf73, #2f9b5f);
+        color: #072013;
+        font-weight: 700;
+        border: none;
+      }
+
+      button.secondary {
+        background: #223149;
+        color: var(--text);
+        border: 1px solid #3b4f71;
+      }
+
+      .row { display: flex; gap: 10px; }
+
+      .error {
+        color: #fff;
+        background: color-mix(in srgb, var(--danger) 20%, transparent);
+        border: 1px solid var(--danger);
+        border-radius: 10px;
+        padding: 10px;
+        display: none;
+      }
+
+      .outputs {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .tabs {
+        display: flex;
+        gap: 8px;
+      }
+
+      .tab-btn {
+        width: auto;
+        padding: 10px 14px;
+        border: 1px solid #3b4f71;
+        background: #223149;
+        color: var(--text);
+      }
+
+      .tab-btn.active {
+        background: linear-gradient(180deg, #3abf73, #2f9b5f);
+        color: #072013;
+        border: none;
+      }
+
+      .tab-panel { display: none; }
+      .tab-panel.active { display: block; }
+
+      .mode-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .mode-row select {
+        max-width: 220px;
+      }
+
+      .advanced-panel {
+        margin-top: 10px;
+      }
+
+      .mono {
+        font-family: Consolas, monospace;
+      }
+
+      .img-wrap {
+        border: 1px solid #2d394d;
+        border-radius: 10px;
+        padding: 8px;
+        background: #0f1521;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+
+      .img-wrap img {
+        max-width: 100%;
+        display: block;
+        border-radius: 8px;
+        margin: 0 auto;
+      }
+
+      .mask-state {
+        min-height: 90px;
+        display: grid;
+        place-items: center;
+        border: 1px dashed #3c4a62;
+        border-radius: 10px;
+        color: var(--muted);
+        background: #0f1521;
+        text-align: center;
+        padding: 12px;
+      }
+
+      .rgb-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      pre {
+        margin: 0;
+        background: #0f1521;
+        border: 1px solid #2d394d;
+        border-radius: 10px;
+        padding: 10px;
+        white-space: pre-wrap;
+        word-break: break-word;
+        min-height: 160px;
+      }
+
+      @media (max-width: 900px) {
+        .grid, .outputs, .rgb-grid { grid-template-columns: 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <section class="card">
+        <h1>Ollama Prompt Workflow UI</h1>
+        <p class="muted">Single and regional prompt workflows with Ollama and optional async ComfyUI mask generation.</p>
+      </section>
+
+      <section class="card">
+        <div class="tabs">
+          <button id="tabSingle" class="tab-btn active">Single Prompt</button>
+          <button id="tabRegional" class="tab-btn">Regional Painter</button>
+        </div>
+      </section>
+
+      <div id="error" class="error"></div>
+
+      <section id="panelSingle" class="tab-panel active">
+        <section class="card">
+          <div class="grid">
+            <div>
+              <label for="modelTranslate">Pass 1 Model (Translate)</label>
+              <input id="modelTranslate" value="qwen2.5:7b" />
+            </div>
+            <div>
+              <label for="modelValidate">Pass 2 Model (Validate)</label>
+              <input id="modelValidate" value="qwen2.5:7b" />
+            </div>
+            <div>
+              <label for="modelFormat">Pass 3 Model (Format)</label>
+              <input id="modelFormat" value="qwen2.5:7b" />
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <label for="naturalLanguage">Natural Language Input</label>
+          <textarea id="naturalLanguage" placeholder="Example: Anime image featuring Neeko from League of Legends, from above, sitting on a rock in a jungle, innocent confused expression, leaning back, looking at viewer."></textarea>
+
+          <label for="loraInput" style="margin-top: 10px;">Inline LoRA Tags (optional, one per line)</label>
+          <textarea id="loraInput" placeholder="<lora:neekoil:1.2>\n<lora:some_style:0.8>"></textarea>
+
+          <div class="row" style="margin-top: 10px;">
+            <button id="runBtn">Run 3-Pass Workflow</button>
+            <button id="copyBtn" class="secondary">Copy Final Output</button>
+          </div>
+        </section>
+
+        <section class="card outputs">
+          <div>
+            <label>Pass 1 - Translate</label>
+            <pre id="pass1"></pre>
+          </div>
+          <div>
+            <label>Pass 2 - Validate</label>
+            <pre id="pass2"></pre>
+          </div>
+        </section>
+
+        <section class="card">
+          <label>Pass 3 - Raw Format Output</label>
+          <pre id="pass3"></pre>
+        </section>
+
+        <section class="card">
+          <label>Final Output (Normalized)</label>
+          <pre id="final"></pre>
+        </section>
+      </section>
+
+      <section id="panelRegional" class="tab-panel">
+        <section class="card">
+          <div class="mode-row" style="margin-bottom: 10px;">
+            <label for="regionalMode" style="margin: 0;">Mode</label>
+            <select id="regionalMode">
+              <option value="basic" selected>Basic</option>
+              <option value="advanced">Advanced</option>
+            </select>
+          </div>
+
+          <div class="grid">
+            <div>
+              <label for="regionalModelGlobal">Global Model</label>
+              <input id="regionalModelGlobal" value="qwen2.5:7b" />
+            </div>
+            <div>
+              <label for="regionalModelRgb">Regional Model</label>
+              <input id="regionalModelRgb" value="qwen2.5:7b" />
+            </div>
+            <div>
+              <label for="regionalComfyUrl">ComfyUI URL</label>
+              <input id="regionalComfyUrl" value="http://127.0.0.1:8188" />
+            </div>
+          </div>
+
+          <div class="grid" style="margin-top: 10px;">
+            <div>
+              <label for="regionalCheckpoint">Checkpoint</label>
+              <select id="regionalCheckpoint"></select>
+            </div>
+            <div>
+              <label>&nbsp;</label>
+              <button id="regionalRefreshCheckpoints" class="secondary">Refresh Checkpoints</button>
+            </div>
+            <div>
+              <label for="regionalComfyPath">Discovered Comfy Path</label>
+              <input id="regionalComfyPath" readonly />
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <label for="regionalNaturalLanguage">Natural Language Input</label>
+          <textarea id="regionalNaturalLanguage" placeholder="Example: 2 girls holding hands, Megumin happy, Darkness sad, in a fantasy town square."></textarea>
+
+          <div id="regionalAdvancedPanel" class="advanced-panel" style="display: none;">
+            <div class="grid" style="margin-top: 10px;">
+              <div>
+                <label for="regionalWidth">Mask Width</label>
+                <input id="regionalWidth" type="number" value="512" />
+              </div>
+              <div>
+                <label for="regionalHeight">Mask Height</label>
+                <input id="regionalHeight" type="number" value="512" />
+              </div>
+              <div>
+                <label for="regionalSteps">Comfy Steps</label>
+                <input id="regionalSteps" type="number" value="24" />
+              </div>
+            </div>
+
+            <div class="grid" style="margin-top: 10px;">
+              <div>
+                <label for="regionalCfg">Comfy CFG</label>
+                <input id="regionalCfg" type="number" value="6.5" step="0.1" />
+              </div>
+              <div>
+                <label for="regionalSampler">Comfy Sampler</label>
+                <input id="regionalSampler" value="euler" />
+              </div>
+              <div>
+                <label for="regionalScheduler">Comfy Scheduler</label>
+                <input id="regionalScheduler" value="normal" />
+              </div>
+            </div>
+
+            <div class="grid" style="margin-top: 10px;">
+              <div>
+                <label for="regionalEnableClipSkip">Enable CLIPSkip</label>
+                <select id="regionalEnableClipSkip">
+                  <option value="true" selected>Enabled</option>
+                  <option value="false">Disabled</option>
+                </select>
+              </div>
+              <div>
+                <label for="regionalClipSkip">CLIPSkip Value</label>
+                <input id="regionalClipSkip" type="number" value="-2" step="1" />
+              </div>
+              <div>
+                <label for="regionalUseSeparateVae">Use Separate VAE</label>
+                <select id="regionalUseSeparateVae">
+                  <option value="false" selected>Disabled</option>
+                  <option value="true">Enabled</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="grid" style="margin-top: 10px;">
+              <div>
+                <label for="regionalSeparateVae">Separate VAE</label>
+                <select id="regionalSeparateVae">
+                  <option value="">Auto / none</option>
+                </select>
+              </div>
+              <div></div>
+              <div></div>
+            </div>
+          </div>
+
+          <div class="grid" style="margin-top: 10px;">
+            <div>
+              <label for="regionalLoraRed">RED LoRA Tags</label>
+              <input id="regionalLoraRed" placeholder="<lora:red_style:1.0>" />
+            </div>
+            <div>
+              <label for="regionalLoraGreen">GREEN LoRA Tags</label>
+              <input id="regionalLoraGreen" placeholder="<lora:green_style:1.0>" />
+            </div>
+            <div>
+              <label for="regionalLoraBlue">BLUE LoRA Tags</label>
+              <input id="regionalLoraBlue" placeholder="<lora:blue_style:1.0>" />
+            </div>
+          </div>
+
+          <div class="row" style="margin-top: 10px;">
+            <button id="regionalStartBtn">Start Regional Workflow</button>
+            <button id="regionalCopyBtn" class="secondary">Copy Regional Output</button>
+          </div>
+        </section>
+
+        <section class="card">
+          <label>Regional Job Status</label>
+          <pre id="regionalStatus" class="mono"></pre>
+        </section>
+
+        <section class="card outputs">
+          <div>
+            <label>GLOBAL_POSITIVE</label>
+            <pre id="regionalGlobal"></pre>
+          </div>
+          <div>
+            <label>GLOBAL_NEGATIVE</label>
+            <pre id="regionalNegative"></pre>
+          </div>
+        </section>
+
+        <section class="card rgb-grid">
+          <div>
+            <label>RED</label>
+            <pre id="regionalRed"></pre>
+          </div>
+          <div>
+            <label>GREEN</label>
+            <pre id="regionalGreen"></pre>
+          </div>
+          <div>
+            <label>BLUE</label>
+            <pre id="regionalBlue"></pre>
+          </div>
+        </section>
+
+        <section class="card">
+          <label>Comfy Mask Output</label>
+          <div id="regionalMaskState" class="mask-state">Awaiting input</div>
+          <div class="img-wrap" style="margin-top: 10px;">
+            <img id="regionalMaskImage" alt="RGB mask output" />
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script>
+      const tabSingle = document.getElementById('tabSingle');
+      const tabRegional = document.getElementById('tabRegional');
+      const panelSingle = document.getElementById('panelSingle');
+      const panelRegional = document.getElementById('panelRegional');
+
+      const runBtn = document.getElementById('runBtn');
+      const copyBtn = document.getElementById('copyBtn');
+      const errorEl = document.getElementById('error');
+
+      const pass1El = document.getElementById('pass1');
+      const pass2El = document.getElementById('pass2');
+      const pass3El = document.getElementById('pass3');
+      const finalEl = document.getElementById('final');
+
+      const regionalStartBtn = document.getElementById('regionalStartBtn');
+      const regionalCopyBtn = document.getElementById('regionalCopyBtn');
+      const regionalModeEl = document.getElementById('regionalMode');
+      const regionalAdvancedPanelEl = document.getElementById('regionalAdvancedPanel');
+      const regionalRefreshCheckpointsBtn = document.getElementById('regionalRefreshCheckpoints');
+      const regionalCheckpointEl = document.getElementById('regionalCheckpoint');
+      const regionalComfyPathEl = document.getElementById('regionalComfyPath');
+      const regionalEnableClipSkipEl = document.getElementById('regionalEnableClipSkip');
+      const regionalClipSkipEl = document.getElementById('regionalClipSkip');
+      const regionalUseSeparateVaeEl = document.getElementById('regionalUseSeparateVae');
+      const regionalSeparateVaeEl = document.getElementById('regionalSeparateVae');
+      const regionalStatusEl = document.getElementById('regionalStatus');
+      const regionalGlobalEl = document.getElementById('regionalGlobal');
+      const regionalNegativeEl = document.getElementById('regionalNegative');
+      const regionalRedEl = document.getElementById('regionalRed');
+      const regionalGreenEl = document.getElementById('regionalGreen');
+      const regionalBlueEl = document.getElementById('regionalBlue');
+      const regionalMaskImageEl = document.getElementById('regionalMaskImage');
+      const regionalMaskStateEl = document.getElementById('regionalMaskState');
+
+      let regionalPollHandle = null;
+      let regionalJobId = null;
+
+      function switchTab(target) {
+        const single = target === 'single';
+        tabSingle.classList.toggle('active', single);
+        tabRegional.classList.toggle('active', !single);
+        panelSingle.classList.toggle('active', single);
+        panelRegional.classList.toggle('active', !single);
+      }
+
+      function setRegionalMode() {
+        const advanced = regionalModeEl.value === 'advanced';
+        regionalAdvancedPanelEl.style.display = advanced ? 'block' : 'none';
+      }
+
+      async function loadComfyDiscovery() {
+        try {
+          const res = await fetch('/api/comfy/discover');
+          const data = await res.json();
+          if (!res.ok || data.error) {
+            throw new Error(data.error || `Request failed (${res.status})`);
+          }
+
+          const list = Array.isArray(data.discovery) ? data.discovery : [];
+          regionalCheckpointEl.innerHTML = '';
+
+          if (list.length === 0) {
+            regionalComfyPathEl.value = '';
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = 'No checkpoints found';
+            regionalCheckpointEl.appendChild(option);
+
+            regionalSeparateVaeEl.innerHTML = '';
+            const autoOption = document.createElement('option');
+            autoOption.value = '';
+            autoOption.textContent = 'Auto / none';
+            regionalSeparateVaeEl.appendChild(autoOption);
+            return;
+          }
+
+          regionalComfyPathEl.value = list[0].path || '';
+          const checkpoints = list[0].checkpoints || [];
+          const vaes = list[0].vaes || [];
+          if (checkpoints.length === 0) {
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = 'No checkpoints found in models/checkpoints';
+            regionalCheckpointEl.appendChild(option);
+          }
+
+          if (checkpoints.length > 0) {
+            for (const ckpt of checkpoints) {
+              const option = document.createElement('option');
+              option.value = ckpt;
+              option.textContent = ckpt;
+              regionalCheckpointEl.appendChild(option);
+            }
+          }
+
+          regionalSeparateVaeEl.innerHTML = '';
+          const autoOption = document.createElement('option');
+          autoOption.value = '';
+          autoOption.textContent = 'Auto / none';
+          regionalSeparateVaeEl.appendChild(autoOption);
+          for (const vae of vaes) {
+            const option = document.createElement('option');
+            option.value = vae;
+            option.textContent = vae;
+            regionalSeparateVaeEl.appendChild(option);
+          }
+        } catch (err) {
+          setError(err.message || 'Failed to discover ComfyUI/checkpoints.');
+        }
+      }
+
+      tabSingle.addEventListener('click', () => switchTab('single'));
+      tabRegional.addEventListener('click', () => switchTab('regional'));
+      regionalModeEl.addEventListener('change', setRegionalMode);
+      regionalRefreshCheckpointsBtn.addEventListener('click', loadComfyDiscovery);
+
+      function setError(msg) {
+        if (!msg) {
+          errorEl.style.display = 'none';
+          errorEl.textContent = '';
+          return;
+        }
+        errorEl.style.display = 'block';
+        errorEl.textContent = msg;
+      }
+
+      runBtn.addEventListener('click', async () => {
+        setError('');
+        runBtn.disabled = true;
+        runBtn.textContent = 'Running...';
+
+        pass1El.textContent = '';
+        pass2El.textContent = '';
+        pass3El.textContent = '';
+        finalEl.textContent = '';
+
+        try {
+          const payload = {
+            naturalLanguage: document.getElementById('naturalLanguage').value,
+            loraInput: document.getElementById('loraInput').value,
+            modelTranslate: document.getElementById('modelTranslate').value,
+            modelValidate: document.getElementById('modelValidate').value,
+            modelFormat: document.getElementById('modelFormat').value
+          };
+
+          const res = await fetch('/api/run', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+
+          const data = await res.json();
+          if (!res.ok || data.error) {
+            throw new Error(data.error || `Request failed (${res.status})`);
+          }
+
+          pass1El.textContent = data.passes.translate || '';
+          pass2El.textContent = data.passes.validate || '';
+          pass3El.textContent = data.passes.format || '';
+          finalEl.textContent = data.final.finalText || '';
+        } catch (err) {
+          setError(err.message || 'Unexpected error');
+        } finally {
+          runBtn.disabled = false;
+          runBtn.textContent = 'Run 3-Pass Workflow';
+        }
+      });
+
+      copyBtn.addEventListener('click', async () => {
+        const text = finalEl.textContent || '';
+        if (!text.trim()) {
+          setError('No final output to copy yet.');
+          return;
+        }
+        await navigator.clipboard.writeText(text);
+      });
+
+      function renderRegional(job) {
+        regionalStatusEl.textContent = `Job: ${job.id}\nStatus: ${job.status}\nComfy: ${job.comfy.status}${job.comfy.promptId ? `\nPrompt ID: ${job.comfy.promptId}` : ''}${job.comfy.error ? `\nComfy Error: ${job.comfy.error}` : ''}`;
+        regionalGlobalEl.textContent = job.globalPrompt || '';
+        regionalNegativeEl.textContent = job.globalNegative || '';
+        regionalRedEl.textContent = job.redPrompt || '';
+        regionalGreenEl.textContent = job.greenPrompt || '';
+        regionalBlueEl.textContent = job.bluePrompt || '';
+
+        if (job.comfy.image && job.comfy.image.url) {
+          regionalMaskImageEl.src = job.comfy.image.url;
+          regionalMaskStateEl.textContent = 'Mask ready';
+        } else if (job.status === 'running' || job.comfy.status === 'queued' || job.comfy.status === 'submitted' || job.comfy.status === 'rendering') {
+          regionalMaskStateEl.textContent = 'Loading mask...';
+        } else {
+          regionalMaskStateEl.textContent = 'Awaiting input';
+        }
+      }
+
+      async function pollRegionalJob(jobId) {
+        if (regionalPollHandle) {
+          clearInterval(regionalPollHandle);
+          regionalPollHandle = null;
+        }
+
+        const tick = async () => {
+          try {
+            const res = await fetch(`/api/regional/status/${encodeURIComponent(jobId)}`);
+            const data = await res.json();
+            if (!res.ok || data.error) {
+              throw new Error(data.error || `Request failed (${res.status})`);
+            }
+
+            renderRegional(data.job);
+
+            if (data.job.status === 'done' || data.job.status === 'failed') {
+              clearInterval(regionalPollHandle);
+              regionalPollHandle = null;
+              regionalStartBtn.disabled = false;
+              regionalStartBtn.textContent = 'Start Regional Workflow';
+            }
+          } catch (err) {
+            setError(err.message || 'Regional polling failed.');
+          }
+        };
+
+        await tick();
+        regionalPollHandle = setInterval(tick, 2500);
+      }
+
+      regionalStartBtn.addEventListener('click', async () => {
+        setError('');
+        regionalStartBtn.disabled = true;
+        regionalStartBtn.textContent = 'Starting...';
+        regionalStatusEl.textContent = '';
+        regionalGlobalEl.textContent = '';
+        regionalNegativeEl.textContent = '';
+        regionalRedEl.textContent = '';
+        regionalGreenEl.textContent = '';
+        regionalBlueEl.textContent = '';
+        regionalMaskImageEl.removeAttribute('src');
+        regionalMaskStateEl.textContent = 'Loading mask...';
+
+        try {
+          const payload = {
+            naturalLanguage: document.getElementById('regionalNaturalLanguage').value,
+            modelGlobal: document.getElementById('regionalModelGlobal').value,
+            modelRegional: document.getElementById('regionalModelRgb').value,
+            comfyEnabled: true,
+            comfyBaseUrl: document.getElementById('regionalComfyUrl').value,
+            comfyCheckpoint: regionalCheckpointEl.value,
+            redLoraInput: document.getElementById('regionalLoraRed').value,
+            greenLoraInput: document.getElementById('regionalLoraGreen').value,
+            blueLoraInput: document.getElementById('regionalLoraBlue').value,
+            width: Number(document.getElementById('regionalWidth').value || 512),
+            height: Number(document.getElementById('regionalHeight').value || 512),
+            steps: Number(document.getElementById('regionalSteps').value || 24),
+            cfg: Number(document.getElementById('regionalCfg').value || 6.5),
+            sampler: document.getElementById('regionalSampler').value || 'euler',
+            scheduler: document.getElementById('regionalScheduler').value || 'normal',
+            enableClipSkip: regionalEnableClipSkipEl.value === 'true',
+            clipSkip: Number(regionalClipSkipEl.value || -2),
+            useSeparateVae: regionalUseSeparateVaeEl.value === 'true',
+            separateVae: regionalSeparateVaeEl.value || ''
+          };
+
+          if (regionalModeEl.value !== 'advanced') {
+            delete payload.width;
+            delete payload.height;
+            delete payload.steps;
+            delete payload.cfg;
+            delete payload.sampler;
+            delete payload.scheduler;
+            delete payload.enableClipSkip;
+            delete payload.clipSkip;
+            delete payload.useSeparateVae;
+            delete payload.separateVae;
+          }
+
+          const res = await fetch('/api/regional/start', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          const data = await res.json();
+          if (!res.ok || data.error) {
+            throw new Error(data.error || `Request failed (${res.status})`);
+          }
+
+          regionalJobId = data.jobId;
+          await pollRegionalJob(regionalJobId);
+        } catch (err) {
+          regionalStartBtn.disabled = false;
+          regionalStartBtn.textContent = 'Start Regional Workflow';
+          setError(err.message || 'Regional start failed.');
+        }
+      });
+
+      regionalCopyBtn.addEventListener('click', async () => {
+        const text = [
+          `GLOBAL_POSITIVE: ${regionalGlobalEl.textContent || ''}`,
+          `RED: ${regionalRedEl.textContent || ''}`,
+          `GREEN: ${regionalGreenEl.textContent || ''}`,
+          `BLUE: ${regionalBlueEl.textContent || ''}`,
+          `GLOBAL_NEGATIVE: ${regionalNegativeEl.textContent || ''}`
+        ].join('\n\n');
+
+        if (!text.replace(/\s/g, '')) {
+          setError('No regional output to copy yet.');
+          return;
+        }
+        await navigator.clipboard.writeText(text);
+      });
+
+      setRegionalMode();
+      loadComfyDiscovery();
+    </script>
+  </body>
+  </html>
