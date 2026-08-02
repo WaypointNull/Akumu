@@ -1,9 +1,9 @@
 const express = require('express');
 const { DEFAULTS } = require('../config/constants');
-const { runSinglePipeline } = require('../services/promptService');
-const { discoverComfyInstallations } = require('../services/comfyDiscoveryService');
-const { createRegionalJob, getRegionalJobStatus, buildComfyConfig } = require('../services/regionalJobService');
-const { getTagSet } = require('../services/tagListService');
+const { runSinglePipeline } = require('../modules/prompt-engine');
+const { discoverComfyInstallations } = require('../modules/comfy');
+const { createRegionalJob, getRegionalJobStatus, buildComfyConfig } = require('../modules/regional-painter');
+const { getTagSet } = require('../modules/tag-resolution');
 
 const router = express.Router();
 

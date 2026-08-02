@@ -9,7 +9,11 @@
   },
   "scripts": {
     "start": "node server.js",
-    "test": "node --test \"test/**/*.test.js\"",
+    "test": "node --test \"src/**/test/*.test.js\"",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "bench": "node scripts/benchmark.js",
     "bench:phasec": "node scripts/benchmark.js phase-c",
     "bench:rules": "node scripts/benchmark.js rules",
@@ -19,5 +23,12 @@
   },
   "dependencies": {
     "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.8.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.9.0",
+    "prettier": "^3.9.6"
   }
 }

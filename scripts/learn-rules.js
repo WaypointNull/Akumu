@@ -2,16 +2,16 @@ const fs = require('fs');
 const path = require('path');
 const {
   ensureTagList,
-  getTagSet,
-  resolveTag
-} = require('../src/services/tagListService');
-const { buildIndex, resolve, buildConceptCandidates } = require('../src/services/tagRetrievalService');
-const { ollamaGenerate } = require('../src/services/ollamaService');
-const { normalizeTag } = require('../src/utils/tagUtils');
-const { RESOLUTIONS_PATH } = require('../src/services/resolutionRules');
+  buildIndex,
+  resolve,
+  buildConceptCandidates,
+  normalizeTag,
+  RESOLUTIONS_PATH
+} = require('../src/modules/tag-resolution');
+const { ollamaGenerate } = require('../src/modules/llm');
+const { loadCases } = require('../src/modules/benchmark');
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
-const CASES_FILE = path.join(DATA_DIR, 'benchmark-cases.json');
 const SUGGESTIONS_FILE = path.join(DATA_DIR, 'rule-suggestions.json');
 const AMBIGUOUS_LOG = path.join(DATA_DIR, 'ambiguous-log.ndjson');
 const PHASE_C_LOG = path.join(DATA_DIR, 'phase-c-log.ndjson');
@@ -61,7 +61,7 @@ function buildReviewSystem() {
 function parseAnnotations(raw) {
   const out = new Map();
   for (const line of String(raw || '').split(/\r?\n/)) {
-    const m = line.trim().match(/^(\d{1,3})\s*[:.\-]\s*(.+)$/i);
+    const m = line.trim().match(/^(\d{1,3})\s*[:.-]\s*(.+)$/i);
     if (!m) continue;
     const index = parseInt(m[1], 10);
     const content = m[2];
@@ -75,7 +75,7 @@ function parseAnnotations(raw) {
     const tags = body
       .split(',')
       .map((t) => t.trim().toLowerCase())
-      .filter((t) => /^[a-z0-9_()'\-]+$/.test(t));
+      .filter((t) => /^[a-z0-9_()'-]+$/.test(t));
     out.set(index, { tags, reason });
   }
   return out;
@@ -108,7 +108,7 @@ async function main() {
   buildIndex();
 
   const freq = loadLogInputs();
-  const cases = fs.existsSync(CASES_FILE) ? JSON.parse(fs.readFileSync(CASES_FILE, 'utf8')).cases : [];
+  const cases = loadCases() || [];
   const expectedByInput = new Map(cases.map((c) => [normalizeTag(c.input), c.expected]));
 
   const targets = cases.filter((c) => resolve(c.input).status === 'unknown');
@@ -170,7 +170,13 @@ async function main() {
       {
         generatedAt: new Date().toISOString(),
         model: args.has('--llm') ? ANNOTATE_MODEL : null,
-        auto: auto.map((e) => ({ index: e.index, input: e.input, freq: e.freq, expected: e.expected, proposal: e.candidate1 })),
+        auto: auto.map((e) => ({
+          index: e.index,
+          input: e.input,
+          freq: e.freq,
+          expected: e.expected,
+          proposal: e.candidate1
+        })),
         review: annotated.map((e) => ({
           index: e.index,
           input: e.input,
@@ -217,7 +223,14 @@ async function main() {
       }
     }
     fs.writeFileSync(RESOLUTIONS_PATH, JSON.stringify(existing, null, 2), 'utf8');
-    console.log('Applied', applied, 'review-found rules (expected in candidates) ->', RESOLUTIONS_PATH, '| truly absent:', absent);
+    console.log(
+      'Applied',
+      applied,
+      'review-found rules (expected in candidates) ->',
+      RESOLUTIONS_PATH,
+      '| truly absent:',
+      absent
+    );
   }
 }
 
