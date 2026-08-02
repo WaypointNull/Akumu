@@ -1,14 +1,14 @@
 const { PORT } = require('./src/config/constants');
 const { createApp } = require('./src/app');
-const { ensureTagList, getTagSet } = require('./src/services/tagListService');
+const { ensureTagList } = require('./src/services/tagListService');
 
 async function start() {
-  await ensureTagList();
+  const summary = await ensureTagList();
 
   const app = createApp();
   app.listen(PORT, () => {
     console.log(`Prompt workflow UI running at http://127.0.0.1:${PORT}`);
-    console.log(`Loaded ${getTagSet().size} danbooru tags`);
+    console.log(`Loaded ${summary.tags} tags, ${summary.aliases} aliases, ${summary.collisions} collisions.`);
   });
 }
 

@@ -4,7 +4,8 @@ function normalizeTag(tag) {
   return (tag || '')
     .trim()
     .toLowerCase()
-    .replace(/^[-*\d.\s:]+/, '')
+    .replace(/^\d+[\s.:\-]+/, '')
+    .replace(/^[-*\s.:]+/, '')
     .replace(/\s+/g, '_')
     .replace(/__+/g, '_')
     .replace(/^_+|_+$/g, '');
