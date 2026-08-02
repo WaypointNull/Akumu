@@ -8,6 +8,9 @@ const {
 } = require('../config/constants');
 const { ollamaGenerate } = require('./ollamaService');
 const { getTagSet } = require('./tagListService');
+const { resolve } = require('./tagRetrievalService');
+const fs = require('fs');
+const path = require('path');
 const {
   parseLoraInput,
   splitTags,
@@ -16,6 +19,102 @@ const {
   isSectionLabel,
   formatTagBlock
 } = require('../utils/tagUtils');
+
+const AMBIGUOUS_LOG_PATH = path.join(__dirname, '..', '..', 'data', 'ambiguous-log.ndjson');
+
+const KNOWN_PROMPT_TAGS = new Set([
+  ...REQUIRED_POSITIVE,
+  ...REQUIRED_NEGATIVE,
+  ...EXTRA_NEGATIVE,
+  ...POSITIVE_FILLER,
+  ...STYLE_BOOSTERS
+]);
+
+function appendAmbiguousLog(entry) {
+  try {
+    fs.appendFileSync(AMBIGUOUS_LOG_PATH, `${JSON.stringify(entry)}\n`);
+  } catch (error) {
+    console.warn('[ambiguous] failed to write log:', error.message);
+  }
+}
+
+function resolvePipelineTags(rawTags, naturalLanguage) {
+  const records = [];
+  for (const original of rawTags) {
+    if (KNOWN_PROMPT_TAGS.has(original)) {
+      records.push({ original, tag: original, status: 'kept', action: 'kept' });
+      continue;
+    }
+    let r;
+    try {
+      r = resolve(original);
+    } catch (error) {
+      console.warn(`[resolve] error for "${original}":`, error.message);
+      r = { status: 'unknown', tag: original, candidates: [] };
+    }
+
+    if (r.status === 'exact') {
+      records.push({ original, tag: r.tag, status: 'kept', action: 'kept' });
+    } else if (r.status === 'alias') {
+      records.push({ original, tag: r.tag, status: 'alias', action: 'alias' });
+    } else if (r.status === 'retrieved') {
+      records.push({
+        original,
+        tag: r.tag,
+        status: 'retrieved',
+        action: 'auto_replaced',
+        confidence: r.confidence,
+        margin: r.margin,
+        candidates: r.candidates
+      });
+    } else if (r.candidates && r.candidates.length) {
+      records.push({ original, tag: original, status: 'ambiguous', action: 'ambiguous', candidates: r.candidates });
+      const entry = {
+        ts: new Date().toISOString(),
+        request: naturalLanguage,
+        input: original,
+        candidates: r.candidates.slice(0, 10).map((c) => ({
+          tag: c.tag,
+          score: +c.score.toFixed(3),
+          stripMatch: !!c.stripMatch
+        }))
+      };
+      appendAmbiguousLog(entry);
+      console.warn(
+        `[ambiguous] "${original}" (request: "${naturalLanguage}") -> ${entry.candidates
+          .slice(0, 5)
+          .map((c) => `${c.tag}(${c.score})`)
+          .join(', ')} ...`
+      );
+    } else {
+      records.push({ original, tag: original, status: 'unknown', action: 'kept' });
+    }
+  }
+  return records;
+}
+
+function formatResolutionSummary(records) {
+  const counts = {};
+  for (const r of records) {
+    counts[r.status] = (counts[r.status] || 0) + 1;
+  }
+  const lines = [`Resolved ${records.length} tags (deterministic).`];
+  if (counts.kept) lines.push(`${counts.kept} kept (exact match)`);
+  if (counts.alias) lines.push(`${counts.alias} alias -> canonical`);
+  if (counts.retrieved) lines.push(`${counts.retrieved} auto-replaced (retrieval)`);
+  if (counts.ambiguous) lines.push(`${counts.ambiguous} ambiguous (kept original, logged)`);
+  if (counts.unknown) lines.push(`${counts.unknown} unknown (kept original)`);
+
+  const replaced = records.filter((r) => r.status === 'alias' || r.status === 'retrieved');
+  if (replaced.length) {
+    lines.push('Replacements: ' + replaced.map((r) => `${r.original} -> ${r.tag}`).join(', '));
+  }
+  const amb = records.filter((r) => r.status === 'ambiguous');
+  if (amb.length) {
+    lines.push('Ambiguous: ' + amb.map((r) => r.original).join(', '));
+  }
+  return lines.join('\n');
+}
 
 async function runSinglePipeline({ naturalLanguage, loraInput = '', modelTranslate, modelValidate, modelFormat }) {
   const selectedModelTranslate = (modelTranslate || DEFAULTS.modelTranslate).trim();
@@ -39,24 +138,15 @@ async function runSinglePipeline({ naturalLanguage, loraInput = '', modelTransla
 
   const candidates = buildCandidatesFromTagList(pass1Tags, naturalLanguage, getTagSet());
 
-  const pass2System = [
-    'You validate danbooru tags against an allowed tag list.',
-    'Use only tags present in the allowed list.',
-    'Output comma-separated tags only.',
-    'No prose and no section labels.'
-  ].join(' ');
-
-  const pass2Prompt = [
-    `Request: ${naturalLanguage}`,
-    `Raw tags: ${pass1Tags.join(', ') || '(none)'}`,
-    `Allowed tags: ${candidates.join(', ') || '(none)'}`,
-    'Return 30-75 validated tags from Allowed tags only.'
-  ].join('\n');
-
-  const pass2Raw = await ollamaGenerate(selectedModelValidate, pass2System, pass2Prompt, 0.1);
-  let validatedTags = splitTags(pass2Raw)
-    .filter((tag) => getTagSet().has(tag))
-    .filter((tag) => !isSectionLabel(tag));
+  const resolution = resolvePipelineTags(pass1Tags, naturalLanguage);
+  const pass2Summary = formatResolutionSummary(resolution);
+  let validatedTags = dedupeKeepOrder(
+    resolution
+      .map((r) => r.tag)
+      .filter((tag) => getTagSet().has(tag))
+      .filter((tag) => !isSectionLabel(tag))
+      .filter((tag) => isUsableTag(tag))
+  );
 
   if (validatedTags.length < 24) {
     validatedTags = dedupeKeepOrder([...validatedTags, ...candidates]).slice(0, 60);
@@ -92,7 +182,7 @@ async function runSinglePipeline({ naturalLanguage, loraInput = '', modelTransla
     },
     passes: {
       translate: pass1Raw,
-      validate: pass2Raw,
+      validate: pass2Summary,
       format: pass3Raw
     },
     final: normalized
@@ -341,5 +431,7 @@ module.exports = {
   runSinglePipeline,
   generateGlobalPrompt,
   generateRegionalPrompts,
-  generateMaskPosePrompt
+  generateMaskPosePrompt,
+  resolvePipelineTags,
+  formatResolutionSummary
 };

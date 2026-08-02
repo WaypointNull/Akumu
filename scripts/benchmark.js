@@ -6,6 +6,7 @@ const {
   getAliasMap,
   resolveTag
 } = require('../src/services/tagListService');
+const { buildIndex, resolve } = require('../src/services/tagRetrievalService');
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const CASES_FILE = path.join(DATA_DIR, 'benchmark-cases.json');
@@ -172,9 +173,12 @@ function run() {
   const byCategory = new Map();
   const wrongSamples = [];
   const unresolvedSamples = [];
+  let reachedRetrieval = 0;
+  let retrievalTop1 = 0;
+  let retrievalTop5 = 0;
 
   for (const c of cases) {
-    const result = resolveTag(c.input);
+    const result = resolve(c.input);
     let outcome;
     if (result.tag === c.expected) outcome = 'recovered';
     else if (result.status === 'unknown') outcome = 'unresolved';
@@ -185,6 +189,12 @@ function run() {
     const cat = byCategory.get(c.category);
     cat.total++;
     cat[outcome]++;
+
+    if (result.candidates && result.candidates.length) {
+      reachedRetrieval++;
+      if (result.candidates[0].tag === c.expected) retrievalTop1++;
+      if (result.candidates.slice(0, 5).some((candidate) => candidate.tag === c.expected)) retrievalTop5++;
+    }
 
     if (outcome === 'wrong' && wrongSamples.length < 10) wrongSamples.push({ input: c.input, expected: c.expected, got: result.tag });
     if (outcome === 'unresolved' && unresolvedSamples.length < 10) unresolvedSamples.push({ input: c.input, expected: c.expected });
@@ -199,6 +209,10 @@ function run() {
   }
   rows.push(['OVERALL', overall.total, overall.recovered, overall.wrong, overall.unresolved, pct(overall.recovered, overall.total)]);
   printTable(['Category', 'Total', 'Recovered', 'Wrong', 'Unresolved', 'Rate'], rows);
+
+  console.log('\nRetrieval quality (cases reaching retrieval):', reachedRetrieval);
+  console.log('  top-1 correct:', retrievalTop1, `(${pct(retrievalTop1, reachedRetrieval)})`);
+  console.log('  top-5 correct:', retrievalTop5, `(${pct(retrievalTop5, reachedRetrieval)})`);
 
   console.log('\nWrong (precision failures - auto-accept danger):');
   if (wrongSamples.length === 0) {
@@ -220,6 +234,8 @@ const [command] = process.argv.slice(2);
 
 (async () => {
   await ensureTagList();
+  const indexStats = buildIndex();
+  console.log('Tag index:', indexStats.tags, 'tags,', indexStats.trigrams, 'trigrams,', indexStats.terms, 'terms.');
   if (command === 'generate') {
     generate();
   } else if (command === 'run') {

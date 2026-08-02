@@ -109,6 +109,17 @@ const JUNK_TOKENS = new Set([
   'n/a'
 ]);
 
+const RETRIEVAL = {
+  poolFloor: 0.25,
+  poolLimit: 60,
+  resultLimit: 20,
+  gateFloor: 0.55,
+  gateGapRatio: 1.25,
+  stripBonus: 0.15,
+  weights: { trigram: 0.3, damerau: 0.5, bm25: 0.2 },
+  bm25: { k1: 1.5, b: 0.75 }
+};
+
 const DEFAULTS = {
   modelTranslate: 'qwen2.5:7b',
   modelValidate: 'qwen2.5:7b',
@@ -129,5 +140,6 @@ module.exports = {
   POSITIVE_FILLER,
   STYLE_BOOSTERS,
   JUNK_TOKENS,
+  RETRIEVAL,
   DEFAULTS
 };
