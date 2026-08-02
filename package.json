@@ -5,7 +5,8 @@
   "description": "Three-pass Ollama prompt workflow UI for WaiIllustrious/booru prompts",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "bench": "node scripts/benchmark.js"
   },
   "dependencies": {
     "express": "^4.21.2"
