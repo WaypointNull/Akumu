@@ -124,14 +124,24 @@ async function runSinglePipeline({ naturalLanguage, loraInput = '', modelTransla
   const loraTags = parseLoraInput(loraInput);
 
   const pass1System = [
-    'Convert natural language image requests into danbooru-style tags.',
-    'Output comma-separated tags only.',
-    'No prose, no section labels, no bullet points, no explanations.',
-    'Use lowercase and underscores.',
-    'Split combined concepts into separate tags.'
+    'Translate natural language image descriptions into existing Danbooru tags.',
+    'Prefer exact, widely-used canonical Danbooru tags.',
+    'If no single canonical tag comes to mind, express the idea using multiple existing tags.',
+    'Do not invent new compound tags or descriptive phrases.',
+    'Prefer simpler, broader tags over highly specific invented ones.',
+    'Examples:',
+    '"dark-skinned girl" -> 1girl, dark_skin',
+    '"headset around neck" -> headphones_around_neck',
+    '"black jean shorts" -> black_shorts, denim',
+    'Output only comma-separated lowercase tags with underscores.',
+    'No prose, explanations, headings, or formatting.'
   ].join(' ');
 
-  const pass1Prompt = [`Request: ${naturalLanguage}`, 'Return 35-80 comma-separated tags.'].join('\n');
+  const pass1Prompt = [
+    `Request: ${naturalLanguage}`,
+    'Return approximately 20-60 comma-separated tags.',
+    'Do not invent tags to reach a target count.'
+  ].join('\n');
 
   const pass1Raw = await ollamaGenerate(selectedModelTranslate, pass1System, pass1Prompt, 0.15);
   const pass1Tags = splitTags(pass1Raw).filter((tag) => !isSectionLabel(tag));
