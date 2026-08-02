@@ -2,6 +2,7 @@ const { buildPass1System, buildPass1Prompt } = require('../templates');
 const { inferTagsFromText } = require('../inference');
 const { dedupeKeepOrder } = require('../../../shared/list');
 const { splitTags, isSectionLabel, isUsableTag } = require('../../tag-resolution');
+const { FORMAT } = require('../../../config/constants');
 
 async function translate(naturalLanguage, { model }, deps) {
   const raw = await deps.llm.ollamaGenerate(model, buildPass1System(), buildPass1Prompt(naturalLanguage), 0.15);
@@ -20,7 +21,7 @@ function candidatesFromTagList(rawTags, naturalLanguage, allowedTags) {
   const inferred = inferTagsFromText(naturalLanguage).filter((tag) => allowedTags.has(tag));
   return dedupeKeepOrder([...candidates, ...inferred])
     .filter((tag) => isUsableTag(tag))
-    .slice(0, 120);
+    .slice(0, FORMAT.candidateCap);
 }
 
 module.exports = {

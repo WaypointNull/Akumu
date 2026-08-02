@@ -1,38 +1,22 @@
 const { dedupeKeepOrder } = require('../../shared/list');
+const RULES = require('./tag-inference.json');
+
+const compiledRules = RULES.rules.map((rule) => ({
+  re: new RegExp(rule.pattern),
+  tags: rule.tags
+}));
 
 function inferTagsFromText(text) {
   const source = (text || '').toLowerCase();
   const inferred = [];
 
-  if (/\bneeko\b/.test(source)) {
-    inferred.push('neeko_(league_of_legends)', 'league_of_legends');
-  }
-  if (/from above|top[- ]?down|overhead/.test(source)) {
-    inferred.push('from_above');
-  }
-  if (/sitting|sits/.test(source)) {
-    inferred.push('sitting');
-  }
-  if (/rock/.test(source)) {
-    inferred.push('on_rock');
-  }
-  if (/jungle|forest/.test(source)) {
-    inferred.push('jungle', 'forest');
-  }
-  if (/looking at (the )?camera|looking at viewer/.test(source)) {
-    inferred.push('looking_at_viewer');
-  }
-  if (/leaning back/.test(source)) {
-    inferred.push('leaning_back');
-  }
-  if (/innocent/.test(source)) {
-    inferred.push('innocent');
-  }
-  if (/confused/.test(source)) {
-    inferred.push('confused');
+  for (const rule of compiledRules) {
+    if (rule.re.test(source)) {
+      inferred.push(...rule.tags);
+    }
   }
 
-  inferred.push('1girl');
+  inferred.push(...RULES.always);
   return dedupeKeepOrder(inferred);
 }
 

@@ -1,4 +1,10 @@
-const { REQUIRED_POSITIVE, REQUIRED_NEGATIVE, EXTRA_NEGATIVE, POSITIVE_FILLER } = require('../../config/constants');
+const {
+  REQUIRED_POSITIVE,
+  REQUIRED_NEGATIVE,
+  EXTRA_NEGATIVE,
+  POSITIVE_FILLER,
+  FORMAT
+} = require('../../config/constants');
 const { dedupeKeepOrder } = require('../../shared/list');
 const { isUsableTag } = require('../tag-resolution');
 
@@ -48,7 +54,7 @@ function buildNegativeBoilerplate() {
   return dedupeKeepOrder([...REQUIRED_NEGATIVE, ...EXTRA_NEGATIVE]);
 }
 
-function formatFinalOutput({ promptTags, loraInput, cap = 85 }) {
+function formatFinalOutput({ promptTags, loraInput, cap = FORMAT.promptTagCap }) {
   const positiveBoilerplate = buildPositiveBoilerplate();
   const negativeBoilerplate = buildNegativeBoilerplate();
 

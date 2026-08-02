@@ -2,6 +2,7 @@ const { dedupeKeepOrder } = require('../../../shared/list');
 const { isUsableTag, isSectionLabel } = require('../../tag-resolution');
 const { formatResolutionSummary, formatFinalOutput } = require('../formatter');
 const { inferTagsFromText } = require('../inference');
+const { FORMAT } = require('../../../config/constants');
 
 function finalize({ records, candidates, naturalLanguage, loraInput, tagSet }) {
   const summary = formatResolutionSummary(records);
@@ -13,13 +14,13 @@ function finalize({ records, candidates, naturalLanguage, loraInput, tagSet }) {
       .filter((tag) => isUsableTag(tag))
   );
 
-  if (validatedTags.length < 24) {
-    validatedTags = dedupeKeepOrder([...validatedTags, ...candidates]).slice(0, 60);
+  if (validatedTags.length < FORMAT.validatedMin) {
+    validatedTags = dedupeKeepOrder([...validatedTags, ...candidates]).slice(0, FORMAT.validatedCap);
   }
 
   const promptTags = dedupeKeepOrder([...validatedTags, ...candidates, ...inferTagsFromText(naturalLanguage)])
     .filter((tag) => isUsableTag(tag))
-    .slice(0, 85);
+    .slice(0, FORMAT.promptTagCap);
 
   const formatted = formatFinalOutput({ promptTags, loraInput });
 

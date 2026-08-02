@@ -1,4 +1,4 @@
-const { REQUIRED_NEGATIVE, EXTRA_NEGATIVE, DEFAULTS } = require('../../../config/constants');
+const { REQUIRED_NEGATIVE, EXTRA_NEGATIVE, DEFAULTS, FORMAT } = require('../../../config/constants');
 const { dedupeKeepOrder } = require('../../../shared/list');
 const { parseLoraInput, splitTags } = require('../../tag-resolution');
 const {
@@ -58,7 +58,7 @@ async function generateMaskPosePrompt(naturalLanguage, globalPrompt, model, deps
   const tags = dedupeKeepOrder(splitTags(raw));
 
   return dedupeKeepOrder([...MASK_POSE_BASE_TAGS, ...tags])
-    .slice(0, 40)
+    .slice(0, FORMAT.maskPoseCap)
     .join(', ');
 }
 

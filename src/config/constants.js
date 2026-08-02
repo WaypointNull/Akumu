@@ -127,6 +127,25 @@ const DEFAULTS = {
   modelRegional: 'qwen2.5:7b'
 };
 
+const COMFY_DEFAULTS = {
+  width: 512,
+  height: 512,
+  steps: 12,
+  cfg: 2.5,
+  sampler: 'euler',
+  scheduler: 'normal',
+  clipSkip: -2,
+  simpleMaskDelayMs: 650
+};
+
+const FORMAT = {
+  candidateCap: 120,
+  validatedMin: 24,
+  validatedCap: 60,
+  promptTagCap: 85,
+  maskPoseCap: 40
+};
+
 module.exports = {
   PORT,
   OLLAMA_URL,
@@ -140,5 +159,7 @@ module.exports = {
   STYLE_BOOSTERS,
   JUNK_TOKENS,
   RETRIEVAL,
-  DEFAULTS
+  DEFAULTS,
+  COMFY_DEFAULTS,
+  FORMAT
 };
