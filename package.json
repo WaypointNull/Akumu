@@ -4,8 +4,12 @@
   "private": true,
   "description": "Three-pass Ollama prompt workflow UI for WaiIllustrious/booru prompts",
   "main": "server.js",
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "start": "node server.js",
+    "test": "node --test \"test/**/*.test.js\"",
     "bench": "node scripts/benchmark.js",
     "bench:phasec": "node scripts/benchmark.js phase-c",
     "bench:rules": "node scripts/benchmark.js rules",

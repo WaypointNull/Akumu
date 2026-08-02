@@ -70,5 +70,15 @@ Open:
 - `server.js`: bootstrap only.
 - `src/app.js`: Express app wiring.
 - `src/routes/apiRoutes.js`: API routes.
-- `src/services/*`: business logic (Ollama, prompts, regional jobs, Comfy integration, discovery, tag list).
-- `src/utils/tagUtils.js`: shared tag parsing/normalization helpers.
+- `src/services/*`: business logic (Ollama, prompts, regional jobs, Comfy integration, discovery, tag list, retrieval, canonicalization, resolution rules).
+- `src/utils/*`: pure, dependency-free helpers (tag parsing, CSV parsing, string metrics, SVG mask, regional parsing, tag inference, formatting, canonicalize prompt text).
+- `src/config/constants.js`: tunable configuration (ports, URLs, tag lists, retrieval tuning, model defaults).
+- `scripts/*`: offline tooling (benchmark, rule learning).
+
+## Tests
+
+```powershell
+npm test
+```
+
+Pure-function unit tests using the built-in `node:test` runner (no external test dependency).

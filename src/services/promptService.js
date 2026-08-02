@@ -18,9 +18,11 @@ const {
   splitTags,
   dedupeKeepOrder,
   isUsableTag,
-  isSectionLabel,
-  formatTagBlock
+  isSectionLabel
 } = require('../utils/tagUtils');
+const { formatResolutionSummary, formatFinalOutput, mergeChannelLoras } = require('../utils/formatting');
+const { parseRegionalText } = require('../utils/regionalParseUtils');
+const { inferTagsFromText } = require('../utils/inferTags');
 
 const AMBIGUOUS_LOG_PATH = path.join(__dirname, '..', '..', 'data', 'ambiguous-log.ndjson');
 
@@ -141,34 +143,6 @@ async function resolvePipelineTags(rawTags, naturalLanguage, { modelCanonicalize
     }
   }
   return records;
-}
-
-function formatResolutionSummary(records) {
-  const counts = {};
-  for (const r of records) {
-    counts[r.status] = (counts[r.status] || 0) + 1;
-  }
-  const lines = [`Resolved ${records.length} tags (deterministic).`];
-  if (counts.kept) lines.push(`${counts.kept} kept (exact match)`);
-  if (counts.alias) lines.push(`${counts.alias} alias -> canonical`);
-  if (counts.retrieved) lines.push(`${counts.retrieved} auto-replaced (retrieval)`);
-  if (counts.rule) lines.push(`${counts.rule} resolved by curated rules`);
-  if (counts.canonicalized) lines.push(`${counts.canonicalized} canonicalized (Phase C)`);
-  if (counts.ambiguous) lines.push(`${counts.ambiguous} ambiguous (kept original, logged)`);
-  if (counts.unknown) lines.push(`${counts.unknown} unknown (kept original)`);
-
-  const replaced = records.filter((r) => r.status === 'alias' || r.status === 'retrieved' || r.status === 'rule' || r.status === 'canonicalized');
-  if (replaced.length) {
-    lines.push(
-      'Replacements: ' +
-        replaced.map((r) => `${r.original} -> ${[r.tag, ...(r.extraTags || [])].join(', ')}`).join('; ')
-    );
-  }
-  const amb = records.filter((r) => r.status === 'ambiguous');
-  if (amb.length) {
-    lines.push('Ambiguous: ' + amb.map((r) => r.original).join(', '));
-  }
-  return lines.join('\n');
 }
 
 async function runSinglePipeline({ naturalLanguage, loraInput = '', modelTranslate, modelValidate }) {
@@ -325,10 +299,6 @@ async function generateMaskPosePrompt(naturalLanguage, globalPrompt, model) {
   return dedupeKeepOrder([...base, ...tags]).slice(0, 40).join(', ');
 }
 
-function mergeChannelLoras(channelLoraTags, channelPromptTags) {
-  return dedupeKeepOrder([...(channelLoraTags || []), ...(channelPromptTags || [])]);
-}
-
 function buildCandidatesFromTagList(rawTags, naturalLanguage, allowedTags) {
   const candidates = [];
   for (const tag of rawTags) {
@@ -339,96 +309,6 @@ function buildCandidatesFromTagList(rawTags, naturalLanguage, allowedTags) {
 
   const inferred = inferTagsFromText(naturalLanguage).filter((tag) => allowedTags.has(tag));
   return dedupeKeepOrder([...candidates, ...inferred]).filter((tag) => isUsableTag(tag)).slice(0, 120);
-}
-
-function buildPositiveBoilerplate() {
-  return dedupeKeepOrder([...REQUIRED_POSITIVE, ...POSITIVE_FILLER]);
-}
-
-function buildNegativeBoilerplate() {
-  return dedupeKeepOrder([...REQUIRED_NEGATIVE, ...EXTRA_NEGATIVE]);
-}
-
-function formatFinalOutput({ promptTags, loraInput, cap = 85 }) {
-  const positiveBoilerplate = buildPositiveBoilerplate();
-  const negativeBoilerplate = buildNegativeBoilerplate();
-
-  const contentTags = dedupeKeepOrder(promptTags || [])
-    .filter((tag) => isUsableTag(tag))
-    .filter((tag) => !positiveBoilerplate.includes(tag))
-    .slice(0, cap);
-
-  const positiveTags = dedupeKeepOrder([...positiveBoilerplate, ...contentTags]);
-  const boilerplatePositiveText = formatTagBlock(positiveBoilerplate);
-  const promptText = formatTagBlock(contentTags);
-  const loraTriggers = (loraInput || '').trim();
-
-  const positiveBlocks = [boilerplatePositiveText, promptText];
-  if (loraTriggers) {
-    positiveBlocks.push(loraTriggers);
-  }
-  const globalPositiveText = positiveBlocks.join('\n\n');
-  const globalNegativeText = formatTagBlock(negativeBoilerplate);
-
-  return {
-    positiveTags,
-    negativeTags: negativeBoilerplate,
-    globalPositiveText,
-    globalNegativeText,
-    finalText: `Global Positive:\n${globalPositiveText}\n\nGlobal Negative:\n${globalNegativeText}`
-  };
-}
-
-function inferTagsFromText(text) {
-  const source = (text || '').toLowerCase();
-  const inferred = [];
-
-  if (/\bneeko\b/.test(source)) {
-    inferred.push('neeko_(league_of_legends)', 'league_of_legends');
-  }
-  if (/from above|top[- ]?down|overhead/.test(source)) {
-    inferred.push('from_above');
-  }
-  if (/sitting|sits/.test(source)) {
-    inferred.push('sitting');
-  }
-  if (/rock/.test(source)) {
-    inferred.push('on_rock');
-  }
-  if (/jungle|forest/.test(source)) {
-    inferred.push('jungle', 'forest');
-  }
-  if (/looking at (the )?camera|looking at viewer/.test(source)) {
-    inferred.push('looking_at_viewer');
-  }
-  if (/leaning back/.test(source)) {
-    inferred.push('leaning_back');
-  }
-  if (/innocent/.test(source)) {
-    inferred.push('innocent');
-  }
-  if (/confused/.test(source)) {
-    inferred.push('confused');
-  }
-
-  inferred.push('1girl');
-  return dedupeKeepOrder(inferred);
-}
-
-function parseRegionalText(text) {
-  const source = text || '';
-  const get = (name) => {
-    const re = new RegExp(`${name}\\s*:\\s*([^\\n]*)`, 'i');
-    const m = source.match(re);
-    return m ? m[1].trim() : '';
-  };
-
-  return {
-    red: get('RED'),
-    green: get('GREEN'),
-    blue: get('BLUE'),
-    globalNegative: get('GLOBAL_NEGATIVE')
-  };
 }
 
 module.exports = {
