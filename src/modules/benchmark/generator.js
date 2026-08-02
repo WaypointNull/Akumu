@@ -1,5 +1,4 @@
 const fs = require('fs');
-const { getAliasMap, getTagSet, resolveTag } = require('../tag-resolution');
 const { DATA_DIR, CASES_FILE, CATEGORY_SIZES, SEED, loadCases } = require('./datasets');
 
 function mulberry32(seed) {
@@ -65,15 +64,15 @@ function corruptPrefix(rng, tag) {
   return pick(rng, prefixes) + tag;
 }
 
-function isValidCorruption(input, expected) {
-  const result = resolveTag(input);
+function isValidCorruption(input, expected, deps) {
+  const result = deps.repository.resolveTag(input);
   if (result.status === 'unknown') return true;
   return result.tag === expected;
 }
 
-function generate() {
+function generate(deps) {
   const rng = mulberry32(SEED);
-  const tagSet = getTagSet();
+  const tagSet = deps.repository.getTagSet();
   const pool = [...tagSet].filter((tag) => tag.length >= 6 && !/^\d/.test(tag));
   const multiWord = pool.filter((tag) => tag.includes('_'));
   const seen = new Set();
@@ -98,19 +97,19 @@ function generate() {
       const tag = pick(rng, spec.pool);
       const input = spec.fn(tag);
       if (!input || input === tag || seen.has(input)) continue;
-      if (!isValidCorruption(input, tag)) continue;
+      if (!isValidCorruption(input, tag, deps)) continue;
       seen.add(input);
       out.push({ category, input, expected: tag });
     }
     cases.push(...out);
   }
 
-  const entries = [...getAliasMap()].filter(([alias]) => alias.length >= 4);
+  const entries = [...deps.repository.getAliasMap()].filter(([alias]) => alias.length >= 4);
   let aliasCount = 0;
   for (const [alias, canonical] of shuffle(rng, entries)) {
     if (aliasCount >= CATEGORY_SIZES.alias) break;
     if (seen.has(alias)) continue;
-    if (resolveTag(alias).tag !== canonical) continue;
+    if (deps.repository.resolveTag(alias).tag !== canonical) continue;
     seen.add(alias);
     cases.push({ category: 'alias', input: alias, expected: canonical });
     aliasCount++;
@@ -129,10 +128,10 @@ function generate() {
   console.log(byCategory);
 }
 
-function ensureCases() {
+function ensureCases(deps) {
   let cases = loadCases();
   if (!cases) {
-    generate();
+    generate(deps);
     cases = loadCases();
   }
   return cases;

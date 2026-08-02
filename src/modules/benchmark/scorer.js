@@ -1,5 +1,4 @@
-const { resolve, buildConceptCandidates, resolveWithRules, resolveTag } = require('../tag-resolution');
-const { canonicalizeConcepts } = require('../prompt-engine');
+﻿const { canonicalizeConcepts } = require('../prompt-engine');
 const { ensureCases } = require('./generator');
 const { CASES_FILE } = require('./datasets');
 
@@ -16,8 +15,8 @@ function printTable(header, rows) {
   for (const row of rows) console.log(fmt(row));
 }
 
-function run() {
-  const cases = ensureCases();
+function run(deps) {
+  const cases = ensureCases(deps);
   const overall = { total: cases.length, recovered: 0, wrong: 0, unresolved: 0 };
   const byCategory = new Map();
   const wrongSamples = [];
@@ -27,7 +26,7 @@ function run() {
   let retrievalTop5 = 0;
 
   for (const c of cases) {
-    const result = resolve(c.input);
+    const result = deps.retrieval.resolve(c.input);
     let outcome;
     if (result.tag === c.expected) outcome = 'recovered';
     else if (result.status === 'unknown') outcome = 'unresolved';
@@ -88,9 +87,9 @@ function run() {
   console.log('');
 }
 
-async function runPhaseC() {
-  const cases = ensureCases();
-  const targets = cases.filter((c) => resolve(c.input).status === 'unknown');
+async function runPhaseC(deps) {
+  const cases = ensureCases(deps);
+  const targets = cases.filter((c) => deps.retrieval.resolve(c.input).status === 'unknown');
   if (!targets.length) {
     console.log('\n=== Phase C offline eval ===');
     console.log('No unresolved cases to canonicalize.');
@@ -105,11 +104,11 @@ async function runPhaseC() {
   const concepts = targets.map((c, i) => ({
     index: i,
     original: c.input,
-    candidates: buildConceptCandidates(c.input)
+    candidates: deps.retrieval.buildConceptCandidates(c.input)
   }));
 
   const startedAt = Date.now();
-  const result = await canonicalizeConcepts({ concepts, model });
+  const result = await canonicalizeConcepts({ concepts, model }, deps);
   const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
 
   const metrics = {
@@ -134,7 +133,9 @@ async function runPhaseC() {
 
     if (candidateSet.has(expected)) metrics.expectedInCandidates++;
 
-    metrics.outOfListProposed += concept.proposed.filter((t) => !candidateSet.has(resolveTag(t).tag)).length;
+    metrics.outOfListProposed += concept.proposed.filter(
+      (t) => !candidateSet.has(deps.repository.resolveTag(t).tag)
+    ).length;
     metrics.acceptedOutOfList += concept.accepted.filter((a) => a.outOfList).length;
     metrics.rejected += concept.rejected.length;
 
@@ -196,8 +197,8 @@ async function runPhaseC() {
   console.log('');
 }
 
-function runRules() {
-  const cases = ensureCases();
+function runRules(deps) {
+  const cases = ensureCases(deps);
   const overall = { total: cases.length, recovered: 0, wrong: 0, unresolved: 0 };
   const byCategory = new Map();
   let rulesHit = 0;
@@ -206,12 +207,12 @@ function runRules() {
   const recoveredSamples = [];
 
   for (const c of cases) {
-    const r = resolve(c.input);
+    const r = deps.retrieval.resolve(c.input);
     let outcome;
     if (r.tag === c.expected) {
       outcome = 'recovered';
     } else if (r.status === 'unknown') {
-      const rule = resolveWithRules(c.input);
+      const rule = deps.ruleTable.resolveWithRules(c.input);
       if (rule) {
         rulesHit++;
         const tags = [rule.tag, ...(rule.extraTags || [])];

@@ -7,7 +7,8 @@ const retrieval = require('./retrieval');
 module.exports = {
   ...parser,
   ...metrics,
-  ...repository,
-  ...aliases,
-  ...retrieval
+  createTagListRepository: repository.createTagListRepository,
+  createRuleTable: aliases.createRuleTable,
+  RESOLUTIONS_PATH: aliases.RESOLUTIONS_PATH,
+  createRetrievalIndex: retrieval.createRetrievalIndex
 };

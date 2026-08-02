@@ -1,11 +1,10 @@
-const { ollamaGenerate } = require('../../llm');
 const { buildPass1System, buildPass1Prompt } = require('../templates');
 const { inferTagsFromText } = require('../inference');
 const { dedupeKeepOrder } = require('../../../shared/list');
 const { splitTags, isSectionLabel, isUsableTag } = require('../../tag-resolution');
 
-async function translate(naturalLanguage, { model, generate = ollamaGenerate } = {}) {
-  const raw = await generate(model, buildPass1System(), buildPass1Prompt(naturalLanguage), 0.15);
+async function translate(naturalLanguage, { model }, deps) {
+  const raw = await deps.llm.ollamaGenerate(model, buildPass1System(), buildPass1Prompt(naturalLanguage), 0.15);
   const tags = splitTags(raw).filter((tag) => !isSectionLabel(tag));
   return { raw, tags };
 }

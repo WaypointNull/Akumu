@@ -1,1 +1,3 @@
-module.exports = require('./jobService');
+const { createRegionalPainter } = require('./jobService');
+
+module.exports = { createRegionalPainter };

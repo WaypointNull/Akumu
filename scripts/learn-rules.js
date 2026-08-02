@@ -1,14 +1,7 @@
 const fs = require('fs');
 const path = require('path');
-const {
-  ensureTagList,
-  buildIndex,
-  resolve,
-  buildConceptCandidates,
-  normalizeTag,
-  RESOLUTIONS_PATH
-} = require('../src/modules/tag-resolution');
-const { ollamaGenerate } = require('../src/modules/llm');
+const { createContainer } = require('../src/container');
+const { normalizeTag, RESOLUTIONS_PATH } = require('../src/modules/tag-resolution');
 const { loadCases } = require('../src/modules/benchmark');
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
@@ -81,7 +74,7 @@ function parseAnnotations(raw) {
   return out;
 }
 
-async function annotate(review) {
+async function annotate(review, deps) {
   const annotated = [];
   for (let start = 0; start < review.length; start += BATCH) {
     const batch = review.slice(start, start + BATCH);
@@ -90,7 +83,7 @@ async function annotate(review) {
       const cands = e.candidates.map((c, i) => `${i + 1}: ${c.tag}`).join('  ');
       lines.push(`${e.index}. ${e.input} -> ${cands}`);
     }
-    const raw = await ollamaGenerate(ANNOTATE_MODEL, buildReviewSystem(), lines.join('\n'), 0.05);
+    const raw = await deps.llm.ollamaGenerate(ANNOTATE_MODEL, buildReviewSystem(), lines.join('\n'), 0.05);
     const parsed = parseAnnotations(raw);
     for (const e of batch) {
       const ann = parsed.get(e.index) || { tags: [], reason: '(no annotation parsed)' };
@@ -104,14 +97,15 @@ async function annotate(review) {
 
 async function main() {
   const args = new Set(process.argv.slice(2));
-  await ensureTagList();
-  buildIndex();
+  const deps = createContainer();
+  await deps.repository.ensureTagList();
+  deps.retrieval.buildIndex();
 
   const freq = loadLogInputs();
   const cases = loadCases() || [];
   const expectedByInput = new Map(cases.map((c) => [normalizeTag(c.input), c.expected]));
 
-  const targets = cases.filter((c) => resolve(c.input).status === 'unknown');
+  const targets = cases.filter((c) => deps.retrieval.resolve(c.input).status === 'unknown');
   const seen = new Set();
   const auto = [];
   const review = [];
@@ -120,7 +114,7 @@ async function main() {
     const input = normalizeTag(c.input);
     if (seen.has(input)) continue;
     seen.add(input);
-    const candidates = buildConceptCandidates(c.input, { limit: 20 });
+    const candidates = deps.retrieval.buildConceptCandidates(c.input, { limit: 20 });
     const top = candidates[0] || null;
     const entry = {
       index: 0,
@@ -140,7 +134,7 @@ async function main() {
       if (seen.has(input)) continue;
       if (expectedByInput.has(input)) continue;
       seen.add(input);
-      const candidates = buildConceptCandidates(input, { limit: 20 });
+      const candidates = deps.retrieval.buildConceptCandidates(input, { limit: 20 });
       review.push({
         index: 0,
         input,
@@ -157,7 +151,7 @@ async function main() {
   if (args.has('--llm') && review.length) {
     review.forEach((e, i) => (e.index = i));
     console.log(`Annotating ${review.length} review cases with ${ANNOTATE_MODEL}...`);
-    annotated = await annotate(review);
+    annotated = await annotate(review, deps);
   }
 
   auto.forEach((e, i) => (e.index = i));
@@ -212,7 +206,7 @@ async function main() {
     for (const e of annotated) {
       if (!e.expected || e.source !== 'benchmark') continue;
       if (existing[normalizeTag(e.input)]) continue;
-      const cands = buildConceptCandidates(e.input, { limit: 20 });
+      const cands = deps.retrieval.buildConceptCandidates(e.input, { limit: 20 });
       const idx = cands.findIndex((c) => c.tag === e.expected);
       if (idx >= 0) {
         existing[normalizeTag(e.input)] = [e.expected];

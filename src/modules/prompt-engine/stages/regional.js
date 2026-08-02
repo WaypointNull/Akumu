@@ -1,5 +1,4 @@
 const { REQUIRED_NEGATIVE, EXTRA_NEGATIVE, DEFAULTS } = require('../../../config/constants');
-const { ollamaGenerate } = require('../../llm');
 const { dedupeKeepOrder } = require('../../../shared/list');
 const { parseLoraInput, splitTags } = require('../../tag-resolution');
 const {
@@ -14,22 +13,21 @@ const {
 const { parseRegionalText } = require('../regionalText');
 const { mergeChannelLoras } = require('../formatter');
 
-async function generateGlobalPrompt(naturalLanguage, model, { generate = ollamaGenerate } = {}) {
+async function generateGlobalPrompt(naturalLanguage, model, deps) {
   const selectedModel = (model || DEFAULTS.modelGlobal).trim();
-  const raw = await generate(selectedModel, buildGlobalSystem(), buildGlobalPrompt(naturalLanguage), 0.12);
+  const raw = await deps.llm.ollamaGenerate(
+    selectedModel,
+    buildGlobalSystem(),
+    buildGlobalPrompt(naturalLanguage),
+    0.12
+  );
   const tags = dedupeKeepOrder(splitTags(raw));
   return dedupeKeepOrder(['masterpiece', 'best_quality', 'amazing_quality', 'absurdres', ...tags]).join(', ');
 }
 
-async function generateRegionalPrompts(
-  naturalLanguage,
-  globalPrompt,
-  model,
-  channelLoras = {},
-  { generate = ollamaGenerate } = {}
-) {
+async function generateRegionalPrompts(naturalLanguage, globalPrompt, model, channelLoras = {}, deps) {
   const selectedModel = (model || DEFAULTS.modelRegional).trim();
-  const raw = await generate(
+  const raw = await deps.llm.ollamaGenerate(
     selectedModel,
     buildRegionalSystem(),
     buildRegionalPrompt(naturalLanguage, globalPrompt),
@@ -49,9 +47,9 @@ async function generateRegionalPrompts(
   return { red, green, blue, globalNegative };
 }
 
-async function generateMaskPosePrompt(naturalLanguage, globalPrompt, model, { generate = ollamaGenerate } = {}) {
+async function generateMaskPosePrompt(naturalLanguage, globalPrompt, model, deps) {
   const selectedModel = (model || DEFAULTS.modelRegional).trim();
-  const raw = await generate(
+  const raw = await deps.llm.ollamaGenerate(
     selectedModel,
     buildMaskPoseSystem(),
     buildMaskPosePrompt(naturalLanguage, globalPrompt),

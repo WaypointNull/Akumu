@@ -1,24 +1,25 @@
 const fs = require('fs');
-const { ensureTagList, buildIndex } = require('../src/modules/tag-resolution');
+const { createContainer } = require('../src/container');
 const { generate, run, runPhaseC, runRules, CASES_FILE } = require('../src/modules/benchmark');
 
 const [command] = process.argv.slice(2);
 
 (async () => {
-  await ensureTagList();
-  const indexStats = buildIndex();
+  const deps = createContainer();
+  await deps.repository.ensureTagList();
+  const indexStats = deps.retrieval.buildIndex();
   console.log('Tag index:', indexStats.tags, 'tags,', indexStats.trigrams, 'trigrams,', indexStats.terms, 'terms.');
   if (command === 'generate') {
-    generate();
+    generate(deps);
   } else if (command === 'run') {
-    run();
+    run(deps);
   } else if (command === 'phase-c') {
-    await runPhaseC();
+    await runPhaseC(deps);
   } else if (command === 'rules') {
-    runRules();
+    runRules(deps);
   } else {
-    if (!fs.existsSync(CASES_FILE)) generate();
-    run();
+    if (!fs.existsSync(CASES_FILE)) generate(deps);
+    run(deps);
   }
 })().catch((error) => {
   console.error(error);

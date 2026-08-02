@@ -1,7 +1,5 @@
 const fs = require('fs');
 const path = require('path');
-const { ollamaGenerate } = require('../../llm');
-const { resolveTag, buildConceptCandidates } = require('../../tag-resolution');
 const { buildCanonicalizeSystem, buildCanonicalizeUser, parseCanonicalizeOutput } = require('./text');
 
 const PHASE_C_LOG_PATH = path.join(__dirname, '..', '..', '..', '..', 'data', 'phase-c-log.ndjson');
@@ -11,8 +9,8 @@ const MAX_TAGS_PER_CONCEPT = 3;
 const MAX_CANDIDATE_RANK = 5;
 const MAX_BATCH = 15;
 
-function validateEmission(tag, alreadyResolvedSet, candidateTagSet) {
-  const r = resolveTag(tag);
+function validateEmission(tag, alreadyResolvedSet, candidateTagSet, deps) {
+  const r = deps.repository.resolveTag(tag);
   if (r.status === 'unknown') {
     return { ok: false, reason: 'unknown' };
   }
@@ -22,17 +20,17 @@ function validateEmission(tag, alreadyResolvedSet, candidateTagSet) {
   return { ok: true, canonical: r.tag, outOfList: !candidateTagSet.has(r.tag) };
 }
 
-function appendPhaseCLog(entry) {
+function appendPhaseCLog(logPath, entry) {
   try {
-    fs.appendFileSync(PHASE_C_LOG_PATH, `${JSON.stringify(entry)}\n`);
+    fs.appendFileSync(logPath, `${JSON.stringify(entry)}\n`);
   } catch (error) {
     console.warn('[phase-c] failed to write log:', error.message);
   }
 }
 
-async function canonicalizeConcepts({ request, resolvedTags = [], concepts = [], model, maxBatch = MAX_BATCH }) {
+async function canonicalizeConcepts({ request, resolvedTags = [], concepts = [], model, maxBatch = MAX_BATCH }, deps) {
   if (!concepts.length) return { raw: '', batches: 0, concepts: [] };
-  const alreadyResolved = new Set(resolvedTags.map((t) => resolveTag(t).tag));
+  const alreadyResolved = new Set(resolvedTags.map((t) => deps.repository.resolveTag(t).tag));
   const results = [];
   const batches = [];
   const totalBatches = Math.ceil(concepts.length / maxBatch);
@@ -41,7 +39,7 @@ async function canonicalizeConcepts({ request, resolvedTags = [], concepts = [],
     const batch = concepts.slice(start, start + maxBatch);
     const system = buildCanonicalizeSystem();
     const user = buildCanonicalizeUser({ request, resolvedTags: [...alreadyResolved], concepts: batch });
-    const raw = await ollamaGenerate(model, system, user, CANONICALIZE_TEMPERATURE);
+    const raw = await deps.llm.ollamaGenerate(model, system, user, CANONICALIZE_TEMPERATURE);
     const parsed = parseCanonicalizeOutput(raw);
 
     for (const c of batch) {
@@ -66,7 +64,7 @@ async function canonicalizeConcepts({ request, resolvedTags = [], concepts = [],
           rejected.push({ tag: t, reason: 'cap_exceeded' });
           continue;
         }
-        const v = validateEmission(t, alreadyResolved, candidateSet);
+        const v = validateEmission(t, alreadyResolved, candidateSet, deps);
         if (!v.ok) {
           rejected.push({ tag: t, reason: v.reason });
           continue;
@@ -101,7 +99,7 @@ async function canonicalizeConcepts({ request, resolvedTags = [], concepts = [],
       rejected: r.rejected
     }))
   };
-  appendPhaseCLog(logEntry);
+  appendPhaseCLog(deps.phaseCLogPath || PHASE_C_LOG_PATH, logEntry);
 
   for (const r of results) {
     for (const rej of r.rejected) {
@@ -118,7 +116,6 @@ async function canonicalizeConcepts({ request, resolvedTags = [], concepts = [],
 }
 
 module.exports = {
-  buildConceptCandidates,
   validateEmission,
   canonicalizeConcepts,
   CANONICALIZE_TEMPERATURE,

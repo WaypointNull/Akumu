@@ -7,7 +7,6 @@ const {
   POSITIVE_FILLER,
   STYLE_BOOSTERS
 } = require('../../../config/constants');
-const { resolve, resolveWithRules } = require('../../tag-resolution');
 
 const AMBIGUOUS_LOG_PATH = path.join(__dirname, '..', '..', '..', '..', 'data', 'ambiguous-log.ndjson');
 
@@ -27,13 +26,12 @@ function appendAmbiguousLog(logPath, entry) {
   }
 }
 
-function resolveAll(
-  rawTags,
-  naturalLanguage,
-  { resolver = resolve, rules = resolveWithRules, logPath = AMBIGUOUS_LOG_PATH } = {}
-) {
+function resolveAll(rawTags, naturalLanguage, deps) {
   const records = [];
   const pending = [];
+  const resolver = deps.retrieval.resolve;
+  const rules = deps.ruleTable.resolveWithRules;
+  const logPath = deps.logPath || AMBIGUOUS_LOG_PATH;
   for (const original of rawTags) {
     if (KNOWN_PROMPT_TAGS.has(original)) {
       records.push({ original, tag: original, status: 'kept', action: 'kept' });

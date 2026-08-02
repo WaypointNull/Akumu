@@ -4,7 +4,8 @@ async function apply(
   records,
   pending,
   naturalLanguage,
-  { model, enabled = false, canonicalizer = canonicalizeConcepts } = {}
+  { model, enabled = false, canonicalizer = canonicalizeConcepts } = {},
+  deps
 ) {
   if (!enabled || !pending.length || !model) {
     return records;
@@ -14,12 +15,15 @@ async function apply(
     const resolvedTags = records
       .filter((r) => r.status === 'kept' || r.status === 'alias' || r.status === 'retrieved')
       .map((r) => r.tag);
-    const result = await canonicalizer({
-      request: naturalLanguage,
-      resolvedTags,
-      concepts: pending,
-      model
-    });
+    const result = await canonicalizer(
+      {
+        request: naturalLanguage,
+        resolvedTags,
+        concepts: pending,
+        model
+      },
+      deps
+    );
     for (const concept of result.concepts) {
       const record = records.find((r) => r.pendingIndex === concept.index);
       if (!record) continue;
