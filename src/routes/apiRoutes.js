@@ -1,5 +1,5 @@
 const express = require('express');
-const { DEFAULTS } = require('../config/constants');
+const { DEFAULTS, COMFY_DEFAULTS, COMFY_DEFAULT_URL } = require('../config/constants');
 const { runSinglePipeline, formatFinalOutput } = require('../modules/prompt-engine');
 const { discoverComfyInstallations } = require('../modules/comfy');
 
@@ -13,7 +13,17 @@ function createApiRoutes(deps) {
   const router = express.Router();
 
   router.get('/health', (_req, res) => {
-    res.json({ ok: true, tagCount: deps.repository.getTagSet().size });
+    res.json({
+      ok: true,
+      tagCount: deps.repository.getTagSet().size,
+      defaults: {
+        modelTranslate: DEFAULTS.modelTranslate,
+        modelGlobal: DEFAULTS.modelGlobal,
+        modelRegional: DEFAULTS.modelRegional,
+        comfyUrl: COMFY_DEFAULT_URL,
+        comfy: COMFY_DEFAULTS
+      }
+    });
   });
 
   router.get('/comfy/discover', (_req, res) => {

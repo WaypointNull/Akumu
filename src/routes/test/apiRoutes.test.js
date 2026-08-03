@@ -67,6 +67,21 @@ test('GET /api/health returns the loaded tag count', async (t) => {
   assert.equal(res.json.tagCount, 3);
 });
 
+test('GET /api/health exposes frontend defaults', async (t) => {
+  const server = await startServer(fakeDeps());
+  t.after(() => server.close());
+  const res = await request(server, { path: '/api/health' });
+  assert.equal(res.status, 200);
+  const d = res.json.defaults;
+  assert.equal(typeof d.modelTranslate, 'string');
+  assert.equal(typeof d.modelGlobal, 'string');
+  assert.equal(typeof d.modelRegional, 'string');
+  assert.match(d.comfyUrl, /^http/);
+  assert.equal(typeof d.comfy.width, 'number');
+  assert.equal(typeof d.comfy.steps, 'number');
+  assert.equal(typeof d.comfy.cfg, 'number');
+});
+
 test('POST /api/run without naturalLanguage returns 400', async (t) => {
   const server = await startServer(fakeDeps());
   t.after(() => server.close());
