@@ -1,8 +1,8 @@
 {
-  "name": "ollama-prompt-workflow-ui",
+  "name": "akumu",
   "version": "1.0.0",
   "private": true,
-  "description": "Three-pass Ollama prompt workflow UI for WaiIllustrious/booru prompts",
+  "description": "Turn natural language into booru-style prompt tags with Ollama.",
   "main": "server/server.js",
   "engines": {
     "node": ">=18"

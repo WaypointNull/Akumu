@@ -1,7 +1,8 @@
 const path = require('path');
 
 const PORT = 5177;
-const OLLAMA_URL = 'http://127.0.0.1:11434/api/generate';
+const OLLAMA_BASE_URL = 'http://127.0.0.1:11434';
+const OLLAMA_URL = `${OLLAMA_BASE_URL}/api/generate`;
 const COMFY_DEFAULT_URL = 'http://127.0.0.1:8188';
 
 const TAG_LIST_URL =
@@ -148,6 +149,7 @@ const FORMAT = {
 
 module.exports = {
   PORT,
+  OLLAMA_BASE_URL,
   OLLAMA_URL,
   COMFY_DEFAULT_URL,
   TAG_LIST_URL,

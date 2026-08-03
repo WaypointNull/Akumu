@@ -23,6 +23,9 @@ export const api = {
   health() {
     return request('/api/health');
   },
+  llmStatus() {
+    return request('/api/llm/status');
+  },
   discover() {
     return request('/api/comfy/discover');
   },

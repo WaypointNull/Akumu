@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch } from 'vue';
+import { ref, watch, computed, onMounted } from 'vue';
 import { api } from '../api.js';
 import TagReviewList from './TagReviewList.vue';
 
@@ -10,6 +10,8 @@ const props = defineProps({
 const emit = defineEmits(['error']);
 
 const modelTranslate = ref('');
+const models = ref([]);
+const ollamaState = ref('checking');
 const naturalLanguage = ref('');
 const loraInput = ref('');
 const running = ref(false);
@@ -21,6 +23,20 @@ const promptTags = ref([]);
 const reviewItems = ref([]);
 const loraForReview = ref('');
 
+const modelOptions = computed(() => {
+  const list = models.value.slice();
+  if (modelTranslate.value && !list.includes(modelTranslate.value)) list.push(modelTranslate.value);
+  return list;
+});
+
+const ollamaLabel = computed(() => {
+  if (ollamaState.value === 'checking') return 'Checking Ollama...';
+  if (ollamaState.value === 'offline') return 'Ollama offline';
+  return models.value.length
+    ? `Ollama online · ${models.value.length} model${models.value.length === 1 ? '' : 's'}`
+    : 'Ollama online · no models';
+});
+
 watch(
   () => props.defaults,
   (d) => {
@@ -28,6 +44,20 @@ watch(
   },
   { immediate: true }
 );
+
+async function loadModels() {
+  ollamaState.value = 'checking';
+  try {
+    const data = await api.llmStatus();
+    models.value = data.models || [];
+    ollamaState.value = data.reachable ? 'online' : 'offline';
+  } catch {
+    models.value = [];
+    ollamaState.value = 'offline';
+  }
+}
+
+onMounted(loadModels);
 
 async function run() {
   emit('error', '');
@@ -97,10 +127,26 @@ async function copy() {
 <template>
   <section class="panel">
     <section class="card">
-      <div class="grid">
+      <div class="model-grid">
         <div class="field">
           <label for="modelTranslate">Model (Translate)</label>
-          <input id="modelTranslate" v-model="modelTranslate" />
+          <select id="modelTranslate" v-model="modelTranslate">
+            <option v-if="!modelOptions.length" value="">No models available</option>
+            <option v-for="m in modelOptions" :key="m" :value="m">{{ m }}</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="ollamaStatus">Ollama</label>
+          <div id="ollamaStatus" class="status-pill" :class="ollamaState">
+            <span class="status-dot"></span>
+            <span>{{ ollamaLabel }}</span>
+          </div>
+        </div>
+        <div class="field">
+          <label>&nbsp;</label>
+          <button type="button" class="outlined" :disabled="ollamaState === 'checking'" @click="loadModels">
+            Refresh Models
+          </button>
         </div>
       </div>
     </section>

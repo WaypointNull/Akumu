@@ -27,9 +27,10 @@ function setError(msg) {
     <header class="hero">
       <img class="hero-logo" src="/akumu.png" alt="Akumu" />
       <div>
-        <h1>Ollama Prompt Workflow UI</h1>
+        <h1>Akumu</h1>
         <p class="muted">
-          Single and regional prompt workflows with Ollama and optional async ComfyUI mask generation.
+          Turn natural language into booru-style prompt tags with Ollama — translate, resolve against the danbooru tag
+          list, and format for image generation.
         </p>
       </div>
     </header>

@@ -9,7 +9,7 @@ async function start() {
 
   const app = createApp(deps);
   app.listen(PORT, () => {
-    console.log(`Prompt workflow UI running at http://127.0.0.1:${PORT}`);
+    console.log(`Akumu running at http://127.0.0.1:${PORT}`);
     console.log(`Loaded ${summary.tags} tags, ${summary.aliases} aliases, ${summary.collisions} collisions.`);
     console.log(
       `Retrieval index: ${indexSummary.tags} tags, ${indexSummary.trigrams} trigrams, ${indexSummary.terms} terms.`

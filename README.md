@@ -1,6 +1,8 @@
-# Ollama Prompt Workflow UI
+# Akumu
 
-Simple local UI with 2 modes:
+Turn natural language into booru-style prompt tags with Ollama — translate, resolve against the danbooru tag list, and format for image generation.
+
+Local UI with 2 modes:
 
 1. Single Prompt mode (3-pass pipeline).
 2. Regional Painter mode (async global/regional prompt generation + async ComfyUI RGB mask generation).
@@ -73,7 +75,8 @@ npm run dev
 - LoRA tags should be entered as inline tags, one per line, for example:
   `<lora:neekoil:1.2>`
 - Final output keeps only GLOBAL_POSITIVE and GLOBAL_NEGATIVE.
-- Pass 2 (tag resolution) and Pass 3 (boilerplate formatting) are deterministic — no LLM. Only Pass 1 (translation) uses a model; its selector is the only model field in the Single Prompt panel.
+- Pass 2 (tag resolution) and Pass 3 (boilerplate formatting) are deterministic — no LLM. Only Pass 1 (translation) uses a model.
+- The Model (Translate) selector is a dropdown populated from the local Ollama instance (`GET /api/llm/status`), with a live status pill showing whether Ollama is reachable and how many models it exposes, plus a Refresh button.
 - Ambiguous tags are resolved transparently: exact/alias/fuzzy matches auto-resolve, invented compounds whose parts all match a real tag auto-decompose, and anything left is kept in the output and shown in the Tag Review panel where you can keep the original, pick a candidate chip, or remove it (the final output re-renders instantly).
 - Regional Painter uses ComfyUI API at `http://127.0.0.1:8188` by default.
 - The server tries to discover ComfyUI installation folders and `models/checkpoints` automatically.
@@ -89,7 +92,7 @@ npm run dev
 - `server/src/config/constants.js`: tunable configuration (ports, URLs, tag lists, retrieval tuning, model defaults, Comfy defaults, format caps).
 - `server/src/shared/list.js`: domain-free utils only (`dedupeKeepOrder`); no domain imports.
 - `server/src/modules/tag-resolution/`: leaf module — `parser.js` (normalize/split/CSV), `metrics.js` (trigram + Damerau-Levenshtein), `repository.js` (tag set/alias tables), `retrieval.js` (BM25 index + fuzzy resolution). Depends only on `config`/`shared`.
-- `server/src/modules/llm/`: leaf module — `ollama.js` thin Ollama client.
+- `server/src/modules/llm/`: leaf module — `ollama.js` thin Ollama client (`ollamaGenerate`, `ollamaStatus` via `GET /api/tags`).
 - `server/src/modules/prompt-engine/`: module — `orchestrator.js` composes the single-pipeline from swappable stages under `stages/`, plus `templates.js`, `regionalText.js`, `formatter.js`, and `canonicalize/` (`text.js` pure Phase C builders, `service.js` LLM-driven canonicalization).
   - `stages/infer.js`: natural-language → booru tags (`translate`) + candidate extraction (`candidatesFromTagList`).
   - `stages/retrieve.js`: deterministic tag resolution against the tag list/aliases (`resolveAll`, with ambiguous-tag logging).
@@ -103,7 +106,7 @@ npm run dev
   - `client/vite.config.mjs`: Vite config; dev proxy `/api` → Express on :5177.
   - `client/src/App.vue`: shell — logo header, error banner, mode tabs.
   - `client/src/api.js`: fetch wrapper for the API.
-  - `client/src/components/SinglePromptPanel.vue`: 3-pass form, outputs, and Tag Review.
+  - `client/src/components/SinglePromptPanel.vue`: 3-pass form with Ollama model dropdown + live status pill, outputs, and Tag Review.
   - `client/src/components/TagReviewList.vue`: review chips (candidates + decomposed parts).
   - `client/src/components/RegionalPainterPanel.vue`: regional workflow, advanced panel, polling.
   - `client/src/styles/main.css`: Material Design 3 black/pink design tokens + components.

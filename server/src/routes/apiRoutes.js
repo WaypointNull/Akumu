@@ -2,6 +2,7 @@ const express = require('express');
 const { DEFAULTS, COMFY_DEFAULTS, COMFY_DEFAULT_URL } = require('../config/constants');
 const { runSinglePipeline, formatFinalOutput } = require('../modules/prompt-engine');
 const { discoverComfyInstallations } = require('../modules/comfy');
+const { ollamaStatus } = require('../modules/llm');
 
 function asyncHandler(fn) {
   return (req, res, next) => {
@@ -29,6 +30,13 @@ function createApiRoutes(deps) {
   router.get('/comfy/discover', (_req, res) => {
     res.json({ ok: true, discovery: discoverComfyInstallations() });
   });
+
+  router.get(
+    '/llm/status',
+    asyncHandler(async (_req, res) => {
+      res.json({ ok: true, ...(await ollamaStatus()) });
+    })
+  );
 
   router.post(
     '/run',

@@ -1,4 +1,21 @@
-const { OLLAMA_URL } = require('../../config/constants');
+const { OLLAMA_BASE_URL, OLLAMA_URL } = require('../../config/constants');
+
+async function ollamaStatus() {
+  let response;
+  try {
+    response = await fetch(`${OLLAMA_BASE_URL}/api/tags`, { signal: AbortSignal.timeout(3000) });
+  } catch {
+    return { reachable: false, models: [], error: 'Ollama unreachable' };
+  }
+
+  if (!response.ok) {
+    return { reachable: true, models: [], error: `Ollama responded ${response.status}` };
+  }
+
+  const json = await response.json();
+  const models = Array.isArray(json.models) ? json.models.map((m) => m.name || '').filter(Boolean) : [];
+  return { reachable: true, models };
+}
 
 async function ollamaGenerate(model, system, prompt, temperature = 0.1) {
   let response;
@@ -35,4 +52,4 @@ async function ollamaGenerate(model, system, prompt, temperature = 0.1) {
   return (json.response || '').trim();
 }
 
-module.exports = { ollamaGenerate };
+module.exports = { ollamaGenerate, ollamaStatus };
