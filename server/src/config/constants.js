@@ -6,6 +6,49 @@ const OLLAMA_URL = `${OLLAMA_BASE_URL}/api/generate`;
 
 const TAG_CATEGORY_COPYRIGHT = 3;
 
+// WORKAROUND: danbooru-e621 merged list has unreliable categories (e.g. "cum_on_floor" -> 0,
+// "female" -> 7), so a category-based NSFW guard is not viable. Instead these content stems are
+// matched against normalized tag tokens to prune explicit suggestions from retrieval results.
+const NSFW_CONTENT_PREFIX_STEMS = new Set([
+  'cum',
+  'sperm',
+  'semen',
+  'ejaculat',
+  'penis',
+  'cock',
+  'dick',
+  'testicle',
+  'scrotum',
+  'vulva',
+  'vagina',
+  'pussy',
+  'cunt',
+  'clit',
+  'dildo',
+  'vibrator',
+  'futa',
+  'masturbat',
+  'orgasm',
+  'poop',
+  'scat',
+  'bukkake',
+  'creampie',
+  'gangbang',
+  'blowjob',
+  'handjob',
+  'rimjob',
+  'deepthroat',
+  'porn',
+  'nsfw',
+  'guro',
+  'squirting',
+  'fuck',
+  'pee',
+  'fellatio'
+]);
+
+const NSFW_CONTENT_EXACT_TOKENS = new Set(['balls', 'sex']);
+
 const TAG_LIST_URL =
   'https://raw.githubusercontent.com/DraconicDragon/dbr-e621-lists-archive/refs/heads/main/tag-lists/danbooru_e621_merged/danbooru_e621_merged_2026-04-01_pt20-ia-dd-ed-spc.csv';
 const TAG_FILE_PATH = path.join(__dirname, '..', '..', '..', 'data', 'danbooru-tags.txt');
@@ -118,7 +161,10 @@ const RETRIEVAL = {
   gateFloor: 0.55,
   gateGapRatio: 1.25,
   stripBonus: 0.15,
-  weights: { trigram: 0.3, damerau: 0.5, bm25: 0.2 },
+  // tokenPreserve rewards candidates that keep the input's exact tokens (e.g. "cat_on_surface" must
+  // not be out-scored by "cum_on_surface", which only wins on raw trigram overlap). Weight moved from
+  // bm25 since both encode token overlap; tokenPreserve is normalized to [0,1].
+  weights: { trigram: 0.3, damerau: 0.5, bm25: 0.1, tokenPreserve: 0.1 },
   bm25: { k1: 1.5, b: 0.75 }
 };
 
@@ -138,6 +184,8 @@ module.exports = {
   OLLAMA_BASE_URL,
   OLLAMA_URL,
   TAG_CATEGORY_COPYRIGHT,
+  NSFW_CONTENT_PREFIX_STEMS,
+  NSFW_CONTENT_EXACT_TOKENS,
   TAG_LIST_URL,
   TAG_FILE_PATH,
   REQUIRED_POSITIVE,

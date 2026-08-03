@@ -19,6 +19,14 @@ const QUALIFIED_CSV = [
   'blue_hair,0,10000,'
 ].join('\n');
 
+const NSFW_CSV = [
+  'cat_on_surface,0,100,',
+  'cat_on_table,0,90,',
+  'cum_on_surface,7,200,',
+  'penis_on_surface,7,300,',
+  'on_surface,0,400,'
+].join('\n');
+
 test('loadFromRecords builds tag set, aliases and collision winners', () => {
   const repo = createTagListRepository();
   const summary = repo.loadFromRecords(parseCsvRecords(CSV));
@@ -76,6 +84,32 @@ test('resolveTag maps neeko to its danbooru alias default', () => {
   const repo = createTagListRepository();
   repo.loadFromRecords(parseCsvRecords(QUALIFIED_CSV));
   assert.deepEqual(repo.resolveTag('neeko'), { status: 'alias', tag: 'neeko_(aldehyde)' });
+});
+
+test('retrieval: token preservation ranks tags that keep the query tokens above NSFW lookalikes', () => {
+  const repo = createTagListRepository();
+  repo.loadFromRecords(parseCsvRecords(NSFW_CSV));
+  const index = createRetrievalIndex({ repository: repo });
+
+  const candidates = index.retrieve('cat_on_surface');
+  assert.equal(candidates[0].tag, 'cat_on_surface');
+  const cat = candidates.find((c) => c.tag === 'cat_on_surface');
+  assert.equal(cat.components.tokenPreserve, 1);
+});
+
+test('retrieval: resolve never surfaces NSFW candidates, explicit NSFW tags still resolve exactly', () => {
+  const repo = createTagListRepository();
+  repo.loadFromRecords(parseCsvRecords(NSFW_CSV));
+  const index = createRetrievalIndex({ repository: repo });
+
+  assert.deepEqual(index.resolve('cum_on_surface'), { status: 'exact', tag: 'cum_on_surface' });
+
+  const fuzzy = index.resolve('cat_on_surfce');
+  assert.ok(Array.isArray(fuzzy.candidates));
+  for (const c of fuzzy.candidates) {
+    assert.ok(!['cum_on_surface', 'penis_on_surface'].includes(c.tag));
+  }
+  assert.ok(fuzzy.candidates.some((c) => c.tag === 'cat_on_surface'));
 });
 
 test('disambiguateAlias re-qualifies an alias when a prompt tag matches another variant qualifier', () => {

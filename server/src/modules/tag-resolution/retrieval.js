@@ -1,4 +1,9 @@
-const { RETRIEVAL, TAG_CATEGORY_COPYRIGHT } = require('../../config/constants');
+const {
+  RETRIEVAL,
+  TAG_CATEGORY_COPYRIGHT,
+  NSFW_CONTENT_PREFIX_STEMS,
+  NSFW_CONTENT_EXACT_TOKENS
+} = require('../../config/constants');
 const { normalizeTag } = require('./parser');
 const { trigrams, tokenize, damerauLevenshtein } = require('./metrics');
 
@@ -60,6 +65,31 @@ function createRetrievalIndex({ repository }) {
     if (!index) buildIndex();
   }
 
+  // WORKAROUND: categories are unreliable in the merged list, so explicit NSFW content is detected
+  // by matching curated stems/exact tokens against the normalized tag tokens.
+  function isNsfwContent(tag) {
+    const tokens = tokenize(normalizeTag(tag));
+    for (const token of tokens) {
+      if (NSFW_CONTENT_EXACT_TOKENS.has(token)) return true;
+      for (const stem of NSFW_CONTENT_PREFIX_STEMS) {
+        if (token.startsWith(stem)) return true;
+      }
+    }
+    return false;
+  }
+
+  // Token-preservation bonus: fraction of the query's tokens that the candidate keeps verbatim.
+  // Mirrors how bm25 scores against the same tokenization.
+  function tokenPreserveScore(queryTokens, candidateId) {
+    if (queryTokens.length === 0) return 0;
+    const candidateTokens = new Set(tokenize(index.enriched[candidateId]));
+    let kept = 0;
+    for (const term of queryTokens) {
+      if (candidateTokens.has(term)) kept++;
+    }
+    return kept / queryTokens.length;
+  }
+
   function bm25Score(queryTokens, candidateId) {
     const { enriched, df, avgLen, docCount } = index;
     const tokens = tokenize(enriched[candidateId]);
@@ -114,7 +144,10 @@ function createRetrievalIndex({ repository }) {
       const bm25 = queryTokens.length ? bm25Score(queryTokens, id) : 0;
       if (bm25 > maxBm25) maxBm25 = bm25;
       const stripMatch = keyStrip.length > 0 && tag.replace(/[^a-z0-9]/g, '') === keyStrip;
-      return { tag, dice, dlSim, bm25, stripMatch };
+      const tokenPreserve = tokenPreserveScore(queryTokens, id);
+      const meta = repository.getTagMeta(tag);
+      const category = meta ? Number(meta.category) : undefined;
+      return { tag, dice, dlSim, bm25, stripMatch, tokenPreserve, category };
     });
 
     for (const s of scored) {
@@ -123,15 +156,17 @@ function createRetrievalIndex({ repository }) {
         RETRIEVAL.weights.trigram * s.dice +
         RETRIEVAL.weights.damerau * s.dlSim +
         RETRIEVAL.weights.bm25 * bm25Norm +
+        RETRIEVAL.weights.tokenPreserve * s.tokenPreserve +
         (s.stripMatch ? RETRIEVAL.stripBonus : 0);
     }
 
     scored.sort((a, b) => b.score - a.score);
-    return scored.slice(0, limit).map(({ tag, score, dice, dlSim, bm25, stripMatch }) => ({
+    return scored.slice(0, limit).map(({ tag, score, dice, dlSim, bm25, stripMatch, tokenPreserve, category }) => ({
       tag,
       score,
       stripMatch,
-      components: { trigram: dice, damerau: dlSim, bm25 }
+      category,
+      components: { trigram: dice, damerau: dlSim, bm25, tokenPreserve }
     }));
   }
 
@@ -184,6 +219,10 @@ function createRetrievalIndex({ repository }) {
       return { status: 'unknown', tag: pre.tag, candidates: [] };
     }
 
+    // WORKAROUND: keep the full pool for the auto-replace decision but never surface explicit NSFW
+    // content as suggestions (the merged list's categories are unreliable, so use the stem filter).
+    const suggestions = candidates.filter((c) => !isNsfwContent(c.tag));
+
     const best = candidates[0];
     const second = candidates[1];
     const ratio = second ? best.score / second.score : Infinity;
@@ -204,11 +243,11 @@ function createRetrievalIndex({ repository }) {
         tag: best.tag,
         confidence: best.score,
         margin,
-        candidates
+        candidates: suggestions
       };
     }
 
-    return { status: 'unknown', tag: pre.tag, candidates };
+    return { status: 'unknown', tag: pre.tag, candidates: suggestions };
   }
 
   function decompose(query) {

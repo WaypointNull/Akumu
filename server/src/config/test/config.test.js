@@ -4,8 +4,8 @@ const assert = require('node:assert/strict');
 const constants = require('../constants');
 
 test('config: retrieval weights sum to 1', () => {
-  const { trigram, damerau, bm25 } = constants.RETRIEVAL.weights;
-  assert.ok(Math.abs(trigram + damerau + bm25 - 1) < 1e-9);
+  const { trigram, damerau, bm25, tokenPreserve } = constants.RETRIEVAL.weights;
+  assert.ok(Math.abs(trigram + damerau + bm25 + tokenPreserve - 1) < 1e-9);
 });
 
 test('config: default models are non-empty strings', () => {
