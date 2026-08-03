@@ -506,11 +506,135 @@ pre {
   outline-offset: 2px;
 }
 
+.scene-layout {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+}
+
+.scene-sidebar {
+  display: flex;
+  flex-direction: column;
+  padding-right: 18px;
+  border-right: 1px solid var(--md-outline-variant);
+}
+
+.scene-main {
+  padding-left: 18px;
+}
+
+.choice-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.choice {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--md-outline-variant);
+  border-radius: var(--md-shape-sm);
+  background: var(--md-surface-container-lowest);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--md-on-surface);
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease;
+}
+
+.choice input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.choice-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--md-outline);
+  flex-shrink: 0;
+  transition: border-color 120ms ease;
+}
+
+.choice.active {
+  border-color: var(--md-primary);
+  background: rgba(255, 177, 200, 0.08);
+}
+
+.choice.active .choice-dot {
+  border-color: var(--md-primary);
+  background: radial-gradient(circle, var(--md-primary) 0 42%, transparent 44%);
+}
+
+.choice.disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.choice-note {
+  margin-left: auto;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--md-on-surface-variant);
+}
+
+.scene-sketch-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.sketch-canvas-wrap {
+  border: 1px solid var(--md-outline);
+  border-radius: var(--md-shape-md);
+  overflow: hidden;
+  background: #000;
+}
+
+.sketch-canvas-wrap canvas {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.sketch-canvas-wrap canvas:focus-visible {
+  outline: 2px solid var(--md-primary);
+}
+
 @media (max-width: 900px) {
   .grid,
   .model-grid,
   .outputs,
   .rgb-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .scene-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .scene-sidebar {
+    border-right: none;
+    border-bottom: 1px solid var(--md-outline-variant);
+    padding-right: 0;
+    padding-bottom: 16px;
+  }
+
+  .scene-main {
+    padding-left: 0;
+    padding-top: 16px;
+  }
+
+  .scene-sketch-row {
     grid-template-columns: 1fr;
   }
 

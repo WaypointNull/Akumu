@@ -40,5 +40,14 @@ export const api = {
   },
   regionalStatus(jobId) {
     return request(`/api/regional/status/${encodeURIComponent(jobId)}`);
+  },
+  sceneStatus(baseUrl) {
+    return request(`/api/scene/status?baseUrl=${encodeURIComponent(baseUrl)}`);
+  },
+  generateScene(payload) {
+    return request('/api/scene/generate', { method: 'POST', body: payload });
+  },
+  sceneJob(jobId) {
+    return request(`/api/scene/status/${encodeURIComponent(jobId)}`);
   }
 };

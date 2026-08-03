@@ -1,3 +1,4 @@
+const { COMFY_DEFAULT_URL } = require('../../config/constants');
 const { buildMaskWorkflow } = require('./workflow');
 
 async function submitComfyMaskPrompt(comfy, naturalLanguage, maskPosePrompt) {
@@ -12,7 +13,11 @@ async function submitComfyMaskPrompt(comfy, naturalLanguage, maskPosePrompt) {
     seed: Math.floor(Math.random() * 2147483647)
   });
 
-  const response = await fetch(`${comfy.baseUrl}/prompt`, {
+  return submitComfyWorkflow(workflow, comfy.baseUrl);
+}
+
+async function submitComfyWorkflow(workflow, baseUrl) {
+  const response = await fetch(`${baseUrl}/prompt`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ prompt: workflow })
@@ -33,6 +38,35 @@ async function submitComfyMaskPrompt(comfy, naturalLanguage, maskPosePrompt) {
   return {
     promptId: json.prompt_id || null
   };
+}
+
+async function uploadComfyImage(buffer, baseUrl, { filename = 'scene_control.png', mimeType = 'image/png' } = {}) {
+  const form = new FormData();
+  form.append('image', new Blob([buffer], { type: mimeType }), filename);
+  const response = await fetch(`${baseUrl}/upload/image`, { method: 'POST', body: form });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Comfy image upload failed (${response.status}): ${text}`);
+  }
+
+  const json = await response.json();
+  return json.name || null;
+}
+
+async function comfyStatus(baseUrl = COMFY_DEFAULT_URL) {
+  let response;
+  try {
+    response = await fetch(`${baseUrl}/system_stats`, { signal: AbortSignal.timeout(3000) });
+  } catch {
+    return { reachable: false, error: 'ComfyUI unreachable' };
+  }
+
+  if (!response.ok) {
+    return { reachable: true, error: `ComfyUI responded ${response.status}` };
+  }
+
+  return { reachable: true, error: null };
 }
 
 async function pollComfyHistory(baseUrl, promptId) {
@@ -76,5 +110,8 @@ async function pollComfyHistory(baseUrl, promptId) {
 
 module.exports = {
   submitComfyMaskPrompt,
+  submitComfyWorkflow,
+  uploadComfyImage,
+  comfyStatus,
   pollComfyHistory
 };

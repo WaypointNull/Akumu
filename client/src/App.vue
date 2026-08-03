@@ -2,9 +2,7 @@
 import { ref, onMounted } from 'vue';
 import { api } from './api.js';
 import SinglePromptPanel from './components/SinglePromptPanel.vue';
-import RegionalPainterPanel from './components/RegionalPainterPanel.vue';
 
-const activeTab = ref('single');
 const error = ref('');
 const defaults = ref({});
 
@@ -37,21 +35,6 @@ function setError(msg) {
 
     <div v-if="error" class="error-banner" role="alert">{{ error }}</div>
 
-    <nav class="tabs" aria-label="Workflow mode">
-      <button type="button" class="tab-btn" :class="{ active: activeTab === 'single' }" @click="activeTab = 'single'">
-        Single Prompt
-      </button>
-      <button
-        type="button"
-        class="tab-btn"
-        :class="{ active: activeTab === 'regional' }"
-        @click="activeTab = 'regional'"
-      >
-        Regional Painter
-      </button>
-    </nav>
-
-    <SinglePromptPanel v-show="activeTab === 'single'" :defaults="defaults" @error="setError" />
-    <RegionalPainterPanel v-show="activeTab === 'regional'" :defaults="defaults" @error="setError" />
+    <SinglePromptPanel :defaults="defaults" @error="setError" />
   </main>
 </template>

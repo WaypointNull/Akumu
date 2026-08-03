@@ -1,7 +1,7 @@
-const test = require('node:test');
-const assert = require('node:assert');
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
 
-const { normalizeComfyConfig } = require('../jobService');
+const { normalizeComfyConfig } = require('../config');
 
 test('normalizeComfyConfig returns defaults for an empty body', () => {
   const config = normalizeComfyConfig({}, []);

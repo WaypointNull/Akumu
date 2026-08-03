@@ -20,6 +20,24 @@ function fakeDeps({ llm } = {}) {
       buildComfyConfig: () => ({ enabled: false }),
       createRegionalJob: () => 'job_test',
       getRegionalJobStatus: async () => null
+    },
+    sceneControl: {
+      buildSceneConfig: (body = {}) => ({
+        baseUrl: 'http://127.0.0.1:8188',
+        checkpoint: body.comfyCheckpoint || 'model.safetensors',
+        width: 512,
+        height: 512,
+        steps: 12,
+        cfg: 2.5,
+        sampler: 'euler',
+        scheduler: 'normal',
+        enableClipSkip: false,
+        useSeparateVae: false,
+        seed: 1,
+        controlNet: { name: body.controlNetModel || '', strength: 0.75, startPercent: 0, endPercent: 1 }
+      }),
+      createSceneJob: () => 'scene_test',
+      getSceneJobStatus: async () => null
     }
   };
 }
@@ -194,6 +212,109 @@ test('GET /api/regional/status for an unknown job returns 404', async (t) => {
   const server = await startServer(fakeDeps());
   t.after(() => server.close());
   const res = await request(server, { path: '/api/regional/status/nope' });
+  assert.equal(res.status, 404);
+  assert.match(res.json.error, /Job not found/);
+});
+
+test('GET /api/scene/status reports provider reachability and discovery', async (t) => {
+  const server = await startServer(fakeDeps());
+  t.after(() => server.close());
+  const res = await request(server, { path: '/api/scene/status' });
+  assert.equal(res.status, 200);
+  assert.equal(res.json.ok, true);
+  assert.equal(typeof res.json.comfy.reachable, 'boolean');
+  assert.ok(Array.isArray(res.json.discovery));
+});
+
+test('POST /api/scene/generate requires naturalLanguage', async (t) => {
+  const server = await startServer(fakeDeps());
+  t.after(() => server.close());
+  const res = await request(server, { method: 'POST', path: '/api/scene/generate', headers: JSON_HEADERS, body: '{}' });
+  assert.equal(res.status, 400);
+  assert.match(res.json.error, /naturalLanguage is required/);
+});
+
+test('POST /api/scene/generate rejects unsupported source/mode combos', async (t) => {
+  const server = await startServer(fakeDeps());
+  t.after(() => server.close());
+  const res = await request(server, {
+    method: 'POST',
+    path: '/api/scene/generate',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ naturalLanguage: 'a girl', source: 'sketch', mode: 'openpose' })
+  });
+  assert.equal(res.status, 400);
+  assert.match(res.json.error, /not implemented/);
+});
+
+test('POST /api/scene/generate rejects a missing sketch', async (t) => {
+  const server = await startServer(fakeDeps());
+  t.after(() => server.close());
+  const res = await request(server, {
+    method: 'POST',
+    path: '/api/scene/generate',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ naturalLanguage: 'a girl', source: 'sketch', mode: 'scribble' })
+  });
+  assert.equal(res.status, 400);
+  assert.match(res.json.error, /data URL/);
+});
+
+test('POST /api/scene/generate requires a ControlNet model when a control source is used', async (t) => {
+  const server = await startServer(fakeDeps());
+  t.after(() => server.close());
+  const res = await request(server, {
+    method: 'POST',
+    path: '/api/scene/generate',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({
+      naturalLanguage: 'a girl',
+      source: 'sketch',
+      mode: 'scribble',
+      sketchImage: `data:image/png;base64,${Buffer.from('sketch').toString('base64')}`
+    })
+  });
+  assert.equal(res.status, 400);
+  assert.match(res.json.error, /ControlNet model is required/);
+});
+
+test('POST /api/scene/generate starts a scene job', async (t) => {
+  const server = await startServer(fakeDeps());
+  t.after(() => server.close());
+  const res = await request(server, {
+    method: 'POST',
+    path: '/api/scene/generate',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({
+      naturalLanguage: 'a girl',
+      source: 'sketch',
+      mode: 'scribble',
+      sketchImage: `data:image/png;base64,${Buffer.from('sketch').toString('base64')}`,
+      controlNetModel: 'scribble.safetensors'
+    })
+  });
+  assert.equal(res.status, 200);
+  assert.equal(res.json.ok, true);
+  assert.equal(res.json.jobId, 'scene_test');
+});
+
+test('POST /api/scene/generate allows source none without a ControlNet model', async (t) => {
+  const server = await startServer(fakeDeps());
+  t.after(() => server.close());
+  const res = await request(server, {
+    method: 'POST',
+    path: '/api/scene/generate',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ naturalLanguage: 'a girl', source: 'none', mode: 'scribble' })
+  });
+  assert.equal(res.status, 200);
+  assert.equal(res.json.jobId, 'scene_test');
+});
+
+test('GET /api/scene/status for an unknown job returns 404', async (t) => {
+  const server = await startServer(fakeDeps());
+  t.after(() => server.close());
+  const res = await request(server, { path: '/api/scene/status/nope' });
   assert.equal(res.status, 404);
   assert.match(res.json.error, /Job not found/);
 });

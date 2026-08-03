@@ -25,10 +25,15 @@ function discoverComfyInstallations() {
     }
   }
 
+  for (const found of findComfyPerInstall(profileRoots)) {
+    installPaths.add(found);
+  }
+
   const discovered = [];
   for (const installPath of installPaths) {
     const checkpointsDir = path.join(installPath, 'models', 'checkpoints');
     const vaeDir = path.join(installPath, 'models', 'vae');
+    const controlnetDir = path.join(installPath, 'models', 'controlnet');
     if (!safeExists(checkpointsDir)) {
       continue;
     }
@@ -49,12 +54,23 @@ function discoverComfyInstallations() {
           .sort((a, b) => a.localeCompare(b))
       : [];
 
+    const controlnets = safeExists(controlnetDir)
+      ? fs
+          .readdirSync(controlnetDir, { withFileTypes: true })
+          .filter((entry) => entry.isFile())
+          .map((entry) => entry.name)
+          .filter((name) => /\.(safetensors|ckpt|pt)$/i.test(name))
+          .sort((a, b) => a.localeCompare(b))
+      : [];
+
     discovered.push({
       path: installPath,
       checkpointsDir,
       checkpoints,
       vaeDir,
-      vaes
+      vaes,
+      controlnetDir,
+      controlnets
     });
   }
 
@@ -160,6 +176,23 @@ function findComfyByShallowScan(root) {
     }
   }
 
+  return dedupeKeepOrder(results);
+}
+
+function findComfyPerInstall(profileRoots) {
+  const results = [];
+  for (const p of profileRoots.filter((r) => r.localAppData)) {
+    const installsRoot = path.join(p.localAppData, 'Comfy-Desktop', 'ComfyUI-Installs');
+    if (!safeExists(installsRoot)) {
+      continue;
+    }
+    for (const entry of safeReadDirs(installsRoot)) {
+      const resolved = resolveComfyRoot(path.join(installsRoot, entry.name));
+      if (resolved) {
+        results.push(resolved);
+      }
+    }
+  }
   return dedupeKeepOrder(results);
 }
 

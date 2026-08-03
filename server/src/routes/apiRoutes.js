@@ -1,7 +1,8 @@
 const express = require('express');
 const { DEFAULTS, COMFY_DEFAULTS, COMFY_DEFAULT_URL } = require('../config/constants');
 const { runSinglePipeline, formatFinalOutput } = require('../modules/prompt-engine');
-const { discoverComfyInstallations } = require('../modules/comfy');
+const { discoverComfyInstallations, comfyStatus } = require('../modules/comfy');
+const { buildControlImage } = require('../modules/scene-control');
 const { ollamaStatus } = require('../modules/llm');
 
 function asyncHandler(fn) {
@@ -98,6 +99,71 @@ function createApiRoutes(deps) {
     '/regional/status/:jobId',
     asyncHandler(async (req, res) => {
       const job = await deps.regionalPainter.getRegionalJobStatus(req.params.jobId);
+      if (!job) {
+        res.status(404).json({ error: 'Job not found.' });
+        return;
+      }
+
+      res.json({ ok: true, job });
+    })
+  );
+
+  router.get(
+    '/scene/status',
+    asyncHandler(async (req, res) => {
+      const baseUrl = (req.query.baseUrl || COMFY_DEFAULT_URL).trim();
+      const status = await comfyStatus(baseUrl);
+      res.json({ ok: true, comfy: status, discovery: discoverComfyInstallations() });
+    })
+  );
+
+  router.post('/scene/generate', (req, res) => {
+    const naturalLanguage = (req.body.naturalLanguage || '').trim();
+    if (!naturalLanguage) {
+      res.status(400).json({ error: 'naturalLanguage is required.' });
+      return;
+    }
+
+    const source = (req.body.source || 'sketch').trim();
+    const mode = (req.body.mode || 'scribble').trim();
+
+    let control;
+    try {
+      control = buildControlImage({ source, mode, sketchImage: req.body.sketchImage });
+    } catch (error) {
+      res.status(error.statusCode || 400).json({ error: error.message });
+      return;
+    }
+
+    const config = deps.sceneControl.buildSceneConfig(req.body);
+
+    if (!config.checkpoint) {
+      res.status(400).json({ error: 'Comfy checkpoint is required.' });
+      return;
+    }
+
+    if (control && !config.controlNet.name) {
+      res.status(400).json({ error: 'ControlNet model is required for a control source.' });
+      return;
+    }
+
+    const jobId = deps.sceneControl.createSceneJob({
+      naturalLanguage,
+      negative: (req.body.negative || '').trim(),
+      source,
+      mode,
+      control,
+      comfy: config,
+      controlNet: config.controlNet
+    });
+
+    res.json({ ok: true, jobId });
+  });
+
+  router.get(
+    '/scene/status/:jobId',
+    asyncHandler(async (req, res) => {
+      const job = await deps.sceneControl.getSceneJobStatus(req.params.jobId);
       if (!job) {
         res.status(404).json({ error: 'Job not found.' });
         return;
