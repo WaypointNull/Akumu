@@ -1,130 +1,117 @@
-# Akumu
+<h1 align="center">Akumu</h1>
 
-Turn natural language into booru-style prompt tags with Ollama — translate, resolve against the danbooru tag list, and format for image generation.
+<p align="center">Describe the scene in plain English. Get a clean, validated booru-style prompt out.</p>
 
-Local UI with 2 modes:
+<p align="center">
+<img alt="Node" src="https://img.shields.io/badge/node-%3E%3D18-339933?style=for-the-badge" />
+<img alt="Runtime" src="https://img.shields.io/badge/runtime-Ollama%20%2B%20Express%20%2B%20Vue%203-4f5bd5?style=for-the-badge" />
+<img alt="License" src="https://img.shields.io/badge/license-WaypointNull%20v1.0-2e7d5b?style=for-the-badge" />
+</p>
 
-1. Single Prompt mode (3-pass pipeline).
-2. Regional Painter mode (async global/regional prompt generation + async ComfyUI RGB mask generation).
+<p align="center">
+<a href="#features">Features</a> · <a href="#how-it-works">How it works</a> · <a href="#quick-start">Getting Started</a> · <a href="#development">Development</a> · <a href="#troubleshooting">Troubleshooting</a>
+</p>
 
-Single mode pipeline:
+<p align="center"><img src="client/public/akumu.png" alt="Akumu" width="160" /></p>
 
-1. Translate natural language to booru-style tags.
-2. Validate tags against a danbooru tag list.
-3. Format final output as only:
-   - GLOBAL_POSITIVE
-   - GLOBAL_NEGATIVE
+Akumu turns natural language into booru-style prompt tags using a **local Ollama model**. Describe the image you want in plain English — _"Neeko from League of Legends, sitting on a rock in a jungle, innocent confused expression, looking at the viewer"_ — and Akumu translates it into proper tags, checks every one against a real danbooru tag list, and formats the result into `GLOBAL_POSITIVE` / `GLOBAL_NEGATIVE` sections ready for your image-generation workflow.
 
-It normalizes final output so required baseline tags are always present.
+> [!NOTE]
+> Everything runs locally on your machine. Akumu talks to your own Ollama instance — no cloud, no accounts, no telemetry.
 
-Regional mode workflow:
+## Features
 
-1. Natural language -> GLOBAL_POSITIVE
-2. In parallel:
+- **Natural language → tags.** Describe the scene; a local LLM converts it to booru-style tags.
+- **Validated against 320k+ real tags.** Every tag is checked against the danbooru tag list — aliases, fuzzy matches, and compound tags are resolved deterministically (no LLM).
+- **Clean, consistent output.** Final prompts always include the baseline quality tags and are formatted into `GLOBAL_POSITIVE` and `GLOBAL_NEGATIVE` sections.
+- **Tag Review.** Tags that can't be confidently resolved are surfaced with candidate suggestions — keep the original, pick a candidate, or remove it, and the output re-renders instantly.
+- **LoRA triggers.** Paste LoRA trigger lines and they're inserted verbatim into the output.
+- **Live Ollama status.** A status pill shows whether Ollama is reachable and how many models are installed; pick any model from the dropdown.
+- **Copy in one click.** Grab the finished prompt straight to your clipboard.
 
-- Generate RED/GREEN/BLUE channel prompts + GLOBAL_NEGATIVE
-- Submit a ComfyUI job to generate an RGB mask image on black background
+## How it works
 
-3. Poll job status from the UI until complete
+Akumu runs a 3-pass pipeline:
 
-Regional mode UI:
+```
+Natural language
+   │   Pass 1 · Translate   (LLM — the only AI pass)
+   ▼
+Raw booru-style tags
+   │   Pass 2 · Validate    (deterministic — tag list, aliases, fuzzy match)
+   ▼
+Resolved tags
+   │   Pass 3 · Format      (deterministic — boilerplate + GLOBAL sections)
+   ▼
+GLOBAL_POSITIVE + GLOBAL_NEGATIVE
+```
 
-1. Basic mode:
-
-- ComfyUI URL
-- Checkpoint dropdown (auto-discovered)
-
-2. Advanced mode:
-
-- Width/height
-- Steps
-- CFG
-- Sampler
-- Scheduler
+Only Pass 1 uses a model. Passes 2 and 3 are deterministic, so the same input always produces the same output.
 
 ## Requirements
 
-- Ollama running locally (`http://127.0.0.1:11434`)
-- At least one installed model, for example `qwen2.5:7b`
-- Node.js 18+
+- **Ollama** running locally (default `http://127.0.0.1:11434`). Install from [ollama.com](https://ollama.com) and make sure it's running.
+- **At least one Ollama model**, for example:
 
-## Run
+  ```powershell
+  ollama pull qwen2.5:7b
+  ```
+
+- **Node.js 18+** from [nodejs.org](https://nodejs.org).
+
+## Quick start
 
 ```powershell
-cd "c:\Users\wendy\OneDrive\Desktop\AI shit\ollama-prompt-workflow-ui"
 npm install
 npm run build
 npm start
 ```
 
-Open:
+Then open **http://127.0.0.1:5177**
 
-`http://127.0.0.1:5177`
+On first run, Akumu downloads the danbooru tag list once into `data/danbooru-tags.txt` (~320k tags). This takes a moment and happens only the first time.
 
-Development (hot reload):
+### Tips
+
+- LoRA tags should be entered as inline tags, one per line — for example `<lora:neekoil:1.2>`.
+- The final output keeps only `GLOBAL_POSITIVE` and `GLOBAL_NEGATIVE`; required baseline tags are always present.
+
+## Development
+
+Hot-reload for hacking on the UI or the API:
 
 ```powershell
 npm run dev
 ```
 
-`npm run dev` runs both processes: the Express API on `http://127.0.0.1:5177` and the Vite dev server on `http://127.0.0.1:5173` (which proxies `/api` to Express). `npm run build` compiles the Vue app into `client/dist`, which `npm start` serves from the same origin.
+This runs both processes: the Express API on `http://127.0.0.1:5177` and the Vite dev server on `http://127.0.0.1:5173`, which proxies `/api` to Express. `npm run build` compiles the Vue app into `client/dist`, which `npm start` serves from the same origin.
 
-## Notes
+| Command          | What it does                                            |
+| ---------------- | ------------------------------------------------------- |
+| `npm test`       | Unit tests (`node:test`, no external test dependencies) |
+| `npm run lint`   | ESLint                                                  |
+| `npm run format` | Prettier                                                |
+| `npm run bench`  | Offline danbooru-resolution benchmark                   |
 
-- The app downloads the danbooru tag list once into `data/danbooru-tags.txt`.
-- LoRA tags should be entered as inline tags, one per line, for example:
-  `<lora:neekoil:1.2>`
-- Final output keeps only GLOBAL_POSITIVE and GLOBAL_NEGATIVE.
-- Pass 2 (tag resolution) and Pass 3 (boilerplate formatting) are deterministic — no LLM. Only Pass 1 (translation) uses a model.
-- The Model (Translate) selector is a dropdown populated from the local Ollama instance (`GET /api/llm/status`), with a live status pill showing whether Ollama is reachable and how many models it exposes, plus a Refresh button.
-- Ambiguous tags are resolved transparently: exact/alias/fuzzy matches auto-resolve, invented compounds whose parts all match a real tag auto-decompose, and anything left is kept in the output and shown in the Tag Review panel where you can keep the original, pick a candidate chip, or remove it (the final output re-renders instantly).
-- Regional Painter uses ComfyUI API at `http://127.0.0.1:8188` by default.
-- The server tries to discover ComfyUI installation folders and `models/checkpoints` automatically.
-- Discovery scans common Windows install locations across user profiles, including `AppData/Local` Comfy Desktop installs.
-- Regional Painter checkpoint selection is a dropdown populated from discovered checkpoint files.
-- If discovery finds no checkpoints, set up ComfyUI/checkpoints first, then click Refresh Checkpoints.
+### Project layout
 
-## Code Structure
+- `server/` — Express API. `server/src/modules/*` are self-contained, swappable modules (tag resolution, Ollama client, prompt pipeline). See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+- `client/` — Vue 3 + Vite single-page app.
+- `scripts/` — thin CLI tools (dev, benchmark).
+- `data/` — runtime data (the downloaded tag list).
 
-- `server/server.js`: bootstrap only.
-- `server/src/app.js`: Express app wiring (JSON body, `/api` router, static serving of `client/dist`).
-- `server/src/routes/apiRoutes.js`: API routes (the composition root — the only place modules are wired together).
-- `server/src/config/constants.js`: tunable configuration (ports, URLs, tag lists, retrieval tuning, model defaults, Comfy defaults, format caps).
-- `server/src/shared/list.js`: domain-free utils only (`dedupeKeepOrder`); no domain imports.
-- `server/src/modules/tag-resolution/`: leaf module — `parser.js` (normalize/split/CSV), `metrics.js` (trigram + Damerau-Levenshtein), `repository.js` (tag set/alias tables), `retrieval.js` (BM25 index + fuzzy resolution). Depends only on `config`/`shared`.
-- `server/src/modules/llm/`: leaf module — `ollama.js` thin Ollama client (`ollamaGenerate`, `ollamaStatus` via `GET /api/tags`).
-- `server/src/modules/prompt-engine/`: module — `orchestrator.js` composes the single-pipeline from swappable stages under `stages/`, plus `templates.js`, `regionalText.js`, `formatter.js`, and `canonicalize/` (`text.js` pure Phase C builders, `service.js` LLM-driven canonicalization).
-  - `stages/infer.js`: natural-language → booru tags (`translate`) + candidate extraction (`candidatesFromTagList`).
-  - `stages/retrieve.js`: deterministic tag resolution against the tag list/aliases (`resolveAll`, with ambiguous-tag logging).
-  - `stages/canonicalize.js`: optional LLM-driven Phase C disambiguation of ambiguous tags (`apply`, no-op unless enabled).
-  - `stages/regional.js`: global/regional/mask LLM prompt generation (`generateGlobalPrompt`, `generateRegionalPrompts`, `generateMaskPosePrompt`).
-  - `stages/format.js`: resolution summary + final output (`finalize`).
-- `server/src/modules/comfy/`: module — `svg.js` (SVG mask generation), `workflow.js` (Comfy graph), `client.js` (prompt submit + history poll), `discovery.js` (local ComfyUI discovery).
-- `server/src/modules/regional-painter/`: module — `jobService.js` (regional job orchestration, Comfy submission, simple masks).
-- `server/src/modules/benchmark/`: module — `datasets.js` (corpus/cases), `generator.js` (corruption case generation), `scorer.js` (offline scoring and Phase C evals).
-- `client/`: Vue 3 + Vite single-page app.
-  - `client/vite.config.mjs`: Vite config; dev proxy `/api` → Express on :5177.
-  - `client/src/App.vue`: shell — logo header, error banner, mode tabs.
-  - `client/src/api.js`: fetch wrapper for the API.
-  - `client/src/components/SinglePromptPanel.vue`: 3-pass form with Ollama model dropdown + live status pill, outputs, and Tag Review.
-  - `client/src/components/TagReviewList.vue`: review chips (candidates + decomposed parts).
-  - `client/src/components/RegionalPainterPanel.vue`: regional workflow, advanced panel, polling.
-  - `client/src/styles/main.css`: Material Design 3 black/pink design tokens + components.
-- `scripts/*`: thin CLIs over the above (benchmark, dev).
-- `docs/ARCHITECTURE.md`: how modules and folders are organized, and how to add a new stage.
+## Troubleshooting
 
-The organizing principle is **module-first**: everything is a module that works on its own and can be swapped in/out, and the folder structure reflects that. The target module layout (`server/src/modules/*`) is in `docs/ARCHITECTURE.md`; the tree above is the current layout. Every module exposes a public interface via `index.js` and imports other modules only through it.
+**The status pill says "Ollama offline".** Make sure the Ollama app is running (it listens on `http://127.0.0.1:11434` by default), then click **Refresh Models**.
 
-Layering is strict and one-way: leaf domains (`tag`, `llm`, `comfy`) import only `config`/`shared`; mid domains (`canonicalize`, `prompt`) import only leaves; top domains (`pipeline`, `regional`, `benchmark`) import only mids/leaves. A module never crosses into a sibling or parent domain on its own.
+**The model dropdown is empty.** Pull a model first (`ollama pull qwen2.5:7b`) and click **Refresh Models**.
 
-Each pipeline stage is an independent module with a small, injectable interface (LLM calls and tag resolution are dependency-injected), so a stage can be swapped or benchmarked in isolation and is covered by its own unit tests.
+**Nothing happens when I press Run.** Enter a description in the **Natural Language Input** box first.
 
-The client is a build-time-only dependency: `vue`, `vite`, and the ESLint/Prettier Vue tooling are dev dependencies. `express` remains the only runtime dependency.
+**First run seems stuck downloading tags.** A ~320k-line tag list is being fetched; give it a moment. It only happens once.
 
-## Tests
+**Port 5177 is already in use.** Change `PORT` in `server/src/config/constants.js`.
 
-```powershell
-npm test
-```
+## License
 
-Pure-function unit tests using the built-in `node:test` runner (no external test dependency).
+[WaypointNull Community License v1.0](LICENSE.md) — free to use, copy, and modify, but **no commercial use**.
