@@ -6,7 +6,7 @@ const COMFY_DEFAULT_URL = 'http://127.0.0.1:8188';
 
 const TAG_LIST_URL =
   'https://raw.githubusercontent.com/DraconicDragon/dbr-e621-lists-archive/refs/heads/main/tag-lists/danbooru_e621_merged/danbooru_e621_merged_2026-04-01_pt20-ia-dd-ed-spc.csv';
-const TAG_FILE_PATH = path.join(__dirname, '..', '..', 'data', 'danbooru-tags.txt');
+const TAG_FILE_PATH = path.join(__dirname, '..', '..', '..', 'data', 'danbooru-tags.txt');
 
 const REQUIRED_POSITIVE = ['masterpiece', 'best_quality', 'amazing_quality', 'absurdres'];
 const REQUIRED_NEGATIVE = [

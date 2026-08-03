@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const DATA_DIR = path.join(__dirname, '..', '..', '..', 'data');
+const DATA_DIR = path.join(__dirname, '..', '..', '..', '..', 'data');
 const BENCHMARK_DIR = path.join(DATA_DIR, 'benchmark');
 const CASES_FILE = path.join(BENCHMARK_DIR, 'benchmark-cases.json');
 

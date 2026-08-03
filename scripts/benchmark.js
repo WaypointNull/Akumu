@@ -1,6 +1,6 @@
 const fs = require('fs');
-const { createContainer } = require('../src/container');
-const { generate, run, runPhaseC, runFormat, CASES_FILE } = require('../src/modules/benchmark');
+const { createContainer } = require('../server/src/container');
+const { generate, run, runPhaseC, runFormat, CASES_FILE } = require('../server/src/modules/benchmark');
 
 const [command] = process.argv.slice(2);
 

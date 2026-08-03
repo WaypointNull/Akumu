@@ -1,4 +1,5 @@
 node_modules/
+client/dist/
 
 # Ignore all files inside data/ except danbooru-tags.txt
 data/*

@@ -1,4 +1,4 @@
 node_modules/
 data/
-public/
+client/dist/
 package-lock.json

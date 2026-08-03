@@ -3,13 +3,16 @@
   "version": "1.0.0",
   "private": true,
   "description": "Three-pass Ollama prompt workflow UI for WaiIllustrious/booru prompts",
-  "main": "server.js",
+  "main": "server/server.js",
   "engines": {
     "node": ">=18"
   },
   "scripts": {
-    "start": "node server.js",
-    "test": "node --test \"src/**/test/*.test.js\"",
+    "start": "node server/server.js",
+    "dev": "node scripts/dev.js",
+    "build": "vite build --config client/vite.config.mjs",
+    "preview": "vite preview --config client/vite.config.mjs",
+    "test": "node --test \"server/src/**/test/*.test.js\"",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
@@ -23,9 +26,14 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@vitejs/plugin-vue": "^6.0.8",
     "eslint": "^10.8.0",
     "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-vue": "^10.10.0",
     "globals": "^17.9.0",
-    "prettier": "^3.9.6"
+    "prettier": "^3.9.6",
+    "vite": "^8.2.0",
+    "vue": "^3.5.40",
+    "vue-eslint-parser": "^10.4.1"
   }
 }

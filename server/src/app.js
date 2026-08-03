@@ -14,7 +14,7 @@ function createApp(deps) {
   app.use('/api', (_req, res) => {
     res.status(404).json({ error: 'API route not found.' });
   });
-  app.use(express.static(path.join(__dirname, '..', 'public')));
+  app.use(express.static(path.join(__dirname, '..', '..', 'client', 'dist')));
 
   app.use((error, _req, res, _next) => {
     const isParseError = error.type === 'entity.parse.failed';
