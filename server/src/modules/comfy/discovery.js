@@ -5,6 +5,8 @@ const { dedupeKeepOrder } = require('../../shared/list');
 
 const USER_EXCLUDE = new Set(['All Users', 'Default', 'Default User', 'Public']);
 
+// WORKAROUND: ComfyUI Desktop hides its working directory, so checkpoints can't be found by conventional
+// paths. This whole module hunts for installs across user profiles and AppData/Local instead of trusting one location.
 function discoverComfyInstallations() {
   const profileRoots = getProfileRoots();
   const directCandidates = getDirectCandidates(profileRoots);
@@ -198,6 +200,7 @@ function findComfyPerInstall(profileRoots) {
 
 function shouldDescend(name, depth) {
   const lower = name.toLowerCase();
+  // WORKAROUND: prune huge, irrelevant dirs during the profile scan; descending into them makes discovery unusably slow.
   if (lower === 'temp' || lower === 'tmp' || lower === 'node_modules' || lower === 'cache') {
     return false;
   }

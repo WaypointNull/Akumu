@@ -25,6 +25,8 @@ async function submitComfyWorkflow(workflow, baseUrl) {
 
   if (!response.ok) {
     const text = await response.text();
+    // WORKAROUND: ComfyUI's raw rejection is useless to users; the common cause is a checkpoint without a
+    // CLIP/text encoder (e.g. Illustrious needs CLIPSkip -2), so sniff the body and say so.
     if (/clip input is invalid|valid clip|text encoder/i.test(text)) {
       throw new Error(
         `Comfy rejected the checkpoint CLIP/text encoder (${response.status}): ${text}. ` +
@@ -56,6 +58,7 @@ async function uploadComfyImage(buffer, baseUrl, { filename = 'scene_control.png
 
 async function comfyStatus(baseUrl = COMFY_DEFAULT_URL) {
   let response;
+  // WORKAROUND: Node fetch has no default timeout; an unreachable ComfyUI would hang the status check otherwise.
   try {
     response = await fetch(`${baseUrl}/system_stats`, { signal: AbortSignal.timeout(3000) });
   } catch {

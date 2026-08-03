@@ -104,6 +104,7 @@ function createRetrievalIndex({ repository }) {
 
     const top = pool.slice(0, RETRIEVAL.poolLimit);
     const queryTokens = tokenize(key);
+    // WORKAROUND: tags differing only by separators ("silver_hair" / "silverhair" / "silver-hair") should match each other.
     const keyStrip = key.replace(/[^a-z0-9]/g, '');
     let maxBm25 = 0;
     const scored = top.map(({ id, dice }) => {
@@ -144,6 +145,7 @@ function createRetrievalIndex({ repository }) {
       }
     };
     absorb(retrieve(key, { limit }));
+    // WORKAROUND: split compound concepts on "_" and retrieve each part so suggestions surface useful single-part candidates.
     if (key.includes('_')) {
       const parts = key.split('_').filter(Boolean);
       for (const part of parts) {
@@ -168,6 +170,8 @@ function createRetrievalIndex({ repository }) {
     const ratio = second ? best.score / second.score : Infinity;
     const margin = second ? best.score - second.score : best.score;
 
+    // WORKAROUND: never auto-replace a short tag with a longer compound extension ("red" -> "red_eyes")
+    // unless the extension is the clear top pick; otherwise fuzzy retrieval over-matches short tags.
     const hasPrefixExtension = candidates.some((c) => c.tag.length > pre.tag.length && c.tag.startsWith(pre.tag));
     const topIsPrefixExtension = best.tag.length > pre.tag.length && best.tag.startsWith(pre.tag);
 

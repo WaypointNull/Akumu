@@ -10,6 +10,7 @@ const {
 
 const AMBIGUOUS_LOG_PATH = path.join(__dirname, '..', '..', '..', '..', 'data', 'ambiguous-log.ndjson');
 
+// WORKAROUND: baseline boilerplate tags must never be rewritten by retrieval, so short-circuit them to "kept" up front.
 const KNOWN_PROMPT_TAGS = new Set([
   ...REQUIRED_POSITIVE,
   ...REQUIRED_NEGATIVE,
@@ -28,7 +29,6 @@ function appendAmbiguousLog(logPath, entry) {
 
 function resolveAll(rawTags, naturalLanguage, deps) {
   const records = [];
-  const pending = [];
   const resolver = deps.retrieval.resolve;
   const decompose = deps.retrieval.decompose || (() => null);
   const logPath = deps.logPath || AMBIGUOUS_LOG_PATH;
@@ -37,6 +37,7 @@ function resolveAll(rawTags, naturalLanguage, deps) {
       records.push({ original, tag: original, status: 'kept', action: 'kept' });
       continue;
     }
+    // WORKAROUND: per-tag resolution and log writes must never take down the pipeline; degrade to "unknown" instead.
     let r;
     try {
       r = resolver(original);
@@ -44,7 +45,6 @@ function resolveAll(rawTags, naturalLanguage, deps) {
       console.warn(`[resolve] error for "${original}":`, error.message);
       r = { status: 'unknown', tag: original, candidates: [] };
     }
-
     if (r.status === 'exact') {
       records.push({ original, tag: r.tag, status: 'kept', action: 'kept' });
     } else if (r.status === 'alias') {
@@ -76,17 +76,14 @@ function resolveAll(rawTags, naturalLanguage, deps) {
           action: 'decomposed'
         });
       } else if (r.candidates && r.candidates.length) {
-        const pendingIndex = pending.length;
         records.push({
           original,
           tag: original,
           status: 'ambiguous',
           action: 'ambiguous',
           candidates: r.candidates,
-          decomposed: dec ? dec.parts : [],
-          pendingIndex
+          decomposed: dec ? dec.parts : []
         });
-        pending.push({ index: pendingIndex, original, candidates: r.candidates });
         const entry = {
           ts: new Date().toISOString(),
           request: naturalLanguage,
@@ -116,7 +113,21 @@ function resolveAll(rawTags, naturalLanguage, deps) {
     }
   }
 
-  return { records, pending };
+  const disambiguate = deps.retrieval.disambiguateAlias;
+  if (disambiguate) {
+    const contextTags = records.map((r) => r.tag);
+    for (const record of records) {
+      if (record.status !== 'alias') continue;
+      const requalified = disambiguate({ status: 'alias', tag: record.tag }, contextTags);
+      if (requalified.status === 'qualified') {
+        record.tag = requalified.tag;
+        record.status = 'qualified';
+        record.action = 'requalified';
+      }
+    }
+  }
+
+  return { records };
 }
 
 module.exports = {

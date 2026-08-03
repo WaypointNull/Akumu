@@ -5,6 +5,7 @@ const { FORMAT } = require('../../../config/constants');
 
 async function translate(naturalLanguage, { model }, deps) {
   const raw = await deps.llm.ollamaGenerate(model, buildPass1System(), buildPass1Prompt(naturalLanguage), 0.15);
+  // WORKAROUND: the LLM tends to emit section headers ("Positive:", "Quality:") instead of pure tags; strip them.
   const tags = splitTags(raw).filter((tag) => !isSectionLabel(tag));
   return { raw, tags };
 }

@@ -8,6 +8,8 @@ const {
 const { dedupeKeepOrder } = require('../../shared/list');
 const { isUsableTag } = require('../tag-resolution');
 
+// WORKAROUND: chunk tags into short lines — image-generation prompt boxes (and text encoders) choke on
+// one giant single-line prompt.
 function formatTagBlock(tags, chunkSize = 14) {
   const lines = [];
   for (let index = 0; index < tags.length; index += chunkSize) {
@@ -26,13 +28,10 @@ function formatResolutionSummary(records) {
   if (counts.alias) lines.push(`${counts.alias} alias -> canonical`);
   if (counts.retrieved) lines.push(`${counts.retrieved} auto-replaced (retrieval)`);
   if (counts.decomposed) lines.push(`${counts.decomposed} decomposed into known tags`);
-  if (counts.canonicalized) lines.push(`${counts.canonicalized} canonicalized (Phase C)`);
   if (counts.ambiguous) lines.push(`${counts.ambiguous} ambiguous (kept original, logged)`);
   if (counts.unknown) lines.push(`${counts.unknown} unknown (kept original)`);
 
-  const replaced = records.filter(
-    (r) => r.status === 'alias' || r.status === 'retrieved' || r.status === 'decomposed' || r.status === 'canonicalized'
-  );
+  const replaced = records.filter((r) => r.status === 'alias' || r.status === 'retrieved' || r.status === 'decomposed');
   if (replaced.length) {
     lines.push(
       'Replacements: ' +
@@ -58,6 +57,8 @@ function formatFinalOutput({ promptTags, loraInput, cap = FORMAT.promptTagCap })
   const positiveBoilerplate = buildPositiveBoilerplate();
   const negativeBoilerplate = buildNegativeBoilerplate();
 
+  // WORKAROUND: drop content tags that are already in the boilerplate (no duplicates) and cap the prompt
+  // length so it stays under text-encoder token limits.
   const contentTags = dedupeKeepOrder(promptTags || [])
     .filter((tag) => isUsableTag(tag))
     .filter((tag) => !positiveBoilerplate.includes(tag))
@@ -84,6 +85,33 @@ function formatFinalOutput({ promptTags, loraInput, cap = FORMAT.promptTagCap })
   };
 }
 
+function formatPass3Breakdown({ promptTags, loraInput, cap = FORMAT.promptTagCap }) {
+  const positiveBoilerplate = buildPositiveBoilerplate();
+  const contentTags = dedupeKeepOrder(promptTags || [])
+    .filter((tag) => isUsableTag(tag))
+    .filter((tag) => !positiveBoilerplate.includes(tag))
+    .slice(0, cap);
+  const loraTriggers = (loraInput || '').trim();
+
+  const lines = [
+    'Format:',
+    '  GLOBAL_POSITIVE = [Boilerplate] [LoRA Tags] [Descriptor tags]',
+    '  GLOBAL_NEGATIVE = [Negative boilerplate]',
+    '',
+    'Boilerplate (auto-added):',
+    `  Quality: ${REQUIRED_POSITIVE.join(', ')}`,
+    `  Style: ${POSITIVE_FILLER.join(', ')}`,
+    `  Negative: ${[...REQUIRED_NEGATIVE, ...EXTRA_NEGATIVE].join(', ')}`,
+    '',
+    '[LoRA Tags]',
+    loraTriggers || '(none)',
+    '',
+    '[Descriptor tags]',
+    contentTags.length ? formatTagBlock(contentTags) : '(none)'
+  ];
+  return lines.join('\n');
+}
+
 function mergeChannelLoras(channelLoraTags, channelPromptTags) {
   return dedupeKeepOrder([...(channelLoraTags || []), ...(channelPromptTags || [])]);
 }
@@ -94,5 +122,6 @@ module.exports = {
   buildPositiveBoilerplate,
   buildNegativeBoilerplate,
   formatFinalOutput,
+  formatPass3Breakdown,
   mergeChannelLoras
 };

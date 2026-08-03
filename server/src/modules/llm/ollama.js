@@ -2,12 +2,14 @@ const { OLLAMA_BASE_URL, OLLAMA_URL } = require('../../config/constants');
 
 async function ollamaStatus() {
   let response;
+  // WORKAROUND: Node fetch has no default timeout; an unreachable Ollama would hang the status pill otherwise.
   try {
     response = await fetch(`${OLLAMA_BASE_URL}/api/tags`, { signal: AbortSignal.timeout(3000) });
   } catch {
     return { reachable: false, models: [], error: 'Ollama unreachable' };
   }
 
+  // WORKAROUND: a live-but-broken server should not read as "offline", which would misdirect troubleshooting.
   if (!response.ok) {
     return { reachable: true, models: [], error: `Ollama responded ${response.status}` };
   }
@@ -29,6 +31,8 @@ async function ollamaGenerate(model, system, prompt, temperature = 0.1) {
         prompt,
         options: {
           temperature,
+          // WORKAROUND: Ollama's default context (2048) truncates long system+prompt combos and corrupts
+          // JSON-ish tag output; cap top_p to fight tail randomness that splits otherwise-valid tags.
           top_p: 0.9,
           num_ctx: 8192
         },

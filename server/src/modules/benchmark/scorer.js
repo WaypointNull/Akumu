@@ -1,5 +1,4 @@
 ﻿const {
-  canonicalizeConcepts,
   formatFinalOutput,
   formatTagBlock,
   buildPositiveBoilerplate,
@@ -93,116 +92,6 @@ function run(deps) {
   console.log('');
 }
 
-async function runPhaseC(deps) {
-  const cases = ensureCases(deps);
-  const targets = cases.filter((c) => deps.retrieval.resolve(c.input).status === 'unknown');
-  if (!targets.length) {
-    console.log('\n=== Phase C offline eval ===');
-    console.log('No unresolved cases to canonicalize.');
-    return;
-  }
-
-  const model = process.env.PHASE_C_MODEL || 'qwen2.5:7b';
-  console.log('\n=== Phase C offline eval ===');
-  console.log('Model:', model);
-  console.log('Targets:', targets.length, '(frozen unresolved cases)');
-
-  const concepts = targets.map((c, i) => ({
-    index: i,
-    original: c.input,
-    candidates: deps.retrieval.buildConceptCandidates(c.input)
-  }));
-
-  const startedAt = Date.now();
-  const result = await canonicalizeConcepts({ concepts, model }, deps);
-  const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
-
-  const metrics = {
-    total: targets.length,
-    recovered: 0,
-    incorrect: 0,
-    skipped: 0,
-    recoveredOutOfList: 0,
-    expectedInCandidates: 0,
-    outOfListProposed: 0,
-    acceptedOutOfList: 0,
-    rejected: 0
-  };
-  const incorrectSamples = [];
-  const recoveredSamples = [];
-
-  for (const concept of result.concepts) {
-    const target = targets[concept.index];
-    const expected = target.expected;
-    const candidateSet = new Set(concept.candidates.map((x) => x.tag));
-    const acceptedTags = concept.accepted.map((a) => a.tag);
-
-    if (candidateSet.has(expected)) metrics.expectedInCandidates++;
-
-    metrics.outOfListProposed += concept.proposed.filter(
-      (t) => !candidateSet.has(deps.repository.resolveTag(t).tag)
-    ).length;
-    metrics.acceptedOutOfList += concept.accepted.filter((a) => a.outOfList).length;
-    metrics.rejected += concept.rejected.length;
-
-    if (acceptedTags.includes(expected)) {
-      metrics.recovered++;
-      if (!candidateSet.has(expected)) metrics.recoveredOutOfList++;
-      if (recoveredSamples.length < 10) {
-        recoveredSamples.push({
-          input: target.input,
-          expected,
-          got: acceptedTags,
-          outOfList: !candidateSet.has(expected)
-        });
-      }
-    } else if (acceptedTags.length) {
-      metrics.incorrect++;
-      if (incorrectSamples.length < 10) {
-        incorrectSamples.push({ input: target.input, expected, got: acceptedTags, proposed: concept.proposed });
-      }
-    } else {
-      metrics.skipped++;
-    }
-  }
-
-  console.log(`Elapsed: ${elapsed}s (${result.batches} batched LLM calls)`);
-  const rows = [
-    ['Recovered (expected in accepted)', metrics.recovered, pct(metrics.recovered, metrics.total)],
-    [
-      '  of which expected NOT in candidates',
-      metrics.recoveredOutOfList,
-      pct(metrics.recoveredOutOfList, metrics.recovered)
-    ],
-    ['Incorrect (accepted but wrong)', metrics.incorrect, pct(metrics.incorrect, metrics.total)],
-    ['Skipped (SKIP / no output)', metrics.skipped, pct(metrics.skipped, metrics.total)]
-  ];
-  printTable(['Metric', 'Count', 'Rate'], rows);
-
-  console.log(
-    '\nCandidate coverage (expected tag in retrieval list):',
-    metrics.expectedInCandidates,
-    `(${pct(metrics.expectedInCandidates, metrics.total)})`
-  );
-  console.log('\nDeviation monitoring:');
-  console.log('  out-of-list proposals:', metrics.outOfListProposed);
-  console.log('  accepted out-of-list:', metrics.acceptedOutOfList);
-  console.log('  rejected proposals:', metrics.rejected);
-
-  console.log('\nRecovered samples:');
-  for (const s of recoveredSamples) {
-    console.log(`  ${s.input} -> ${s.got.join(', ')} (expected ${s.expected})${s.outOfList ? ' [OUT-OF-LIST]' : ''}`);
-  }
-
-  console.log('\nIncorrect (precision danger - must review):');
-  if (incorrectSamples.length === 0) {
-    console.log('  none');
-  } else {
-    for (const s of incorrectSamples) console.log(`  ${s.input} -> ${s.got.join(', ')} (expected ${s.expected})`);
-  }
-  console.log('');
-}
-
 function runFormat(deps) {
   const cases = ensureCases(deps);
   const positiveBoilerplate = buildPositiveBoilerplate();
@@ -270,6 +159,5 @@ module.exports = {
   pct,
   printTable,
   run,
-  runPhaseC,
   runFormat
 };

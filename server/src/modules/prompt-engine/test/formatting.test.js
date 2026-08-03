@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 
 const {
   formatResolutionSummary,
+  formatPass3Breakdown,
   buildPositiveBoilerplate,
   buildNegativeBoilerplate,
   formatFinalOutput,
@@ -70,4 +71,26 @@ test('formatTagBlock: chunks tags into comma-separated lines', () => {
   assert.equal(formatTagBlock(['a', 'b', 'c', 'd'], 3), 'a, b, c\nd');
   assert.equal(formatTagBlock(['a', 'b'], 3), 'a, b');
   assert.equal(formatTagBlock([], 3), '');
+});
+
+test('formatPass3Breakdown: shows format, boilerplate, and LoRA/Descriptor sections', () => {
+  const out = formatPass3Breakdown({
+    promptTags: ['sitting', 'blue_hair'],
+    loraInput: '<lora:test:1.0>'
+  });
+  assert.ok(out.includes('GLOBAL_POSITIVE = [Boilerplate] [LoRA Tags] [Descriptor tags]'));
+  assert.ok(out.includes('[LoRA Tags]'));
+  assert.ok(out.includes('<lora:test:1.0>'));
+  assert.ok(out.includes('[Descriptor tags]'));
+  assert.ok(out.includes('sitting'));
+  assert.ok(out.includes('blue_hair'));
+  assert.ok(buildPositiveBoilerplate().every((tag) => out.includes(tag)));
+});
+
+test('formatPass3Breakdown: dedupes boilerplate tags out of the descriptor section', () => {
+  const boilerplate = buildPositiveBoilerplate();
+  const out = formatPass3Breakdown({ promptTags: [...boilerplate, 'sitting'], loraInput: '' });
+  const descriptorSection = out.slice(out.lastIndexOf('[Descriptor tags]'));
+  assert.ok(descriptorSection.includes('sitting'));
+  assert.ok(!descriptorSection.includes('masterpiece'));
 });

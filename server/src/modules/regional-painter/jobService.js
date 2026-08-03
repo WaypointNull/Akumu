@@ -175,6 +175,8 @@ function createRegionalPainter(deps) {
       ]
     });
 
+    // WORKAROUND: "simple mask" mode fakes an async render — a fixed delay plus an inline SVG data-URI —
+    // so the UI can poll and demo without a real ComfyUI mask job.
     await delay(COMFY_DEFAULTS.simpleMaskDelayMs);
 
     job.comfy.status = 'done';

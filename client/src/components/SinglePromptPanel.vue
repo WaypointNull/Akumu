@@ -25,6 +25,8 @@ const loraForReview = ref('');
 
 const modelOptions = computed(() => {
   const list = models.value.slice();
+  // WORKAROUND: keep the selected (often the persisted default) model in the dropdown even when it's not
+  // in Ollama's installed list, so the default survives an Ollama model mismatch.
   if (modelTranslate.value && !list.includes(modelTranslate.value)) list.push(modelTranslate.value);
   return list;
 });
@@ -189,7 +191,7 @@ async function copy() {
 
     <section class="card">
       <label>Pass 3 - Boilerplate Format (deterministic, no LLM)</label>
-      <pre>{{ pass3 }}</pre>
+      <pre class="preserve">{{ pass3 }}</pre>
     </section>
 
     <section v-if="reviewItems.length" class="card">

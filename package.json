@@ -18,7 +18,6 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "bench": "node scripts/benchmark.js",
-    "bench:phasec": "node scripts/benchmark.js phase-c",
     "bench:format": "node scripts/benchmark.js format"
   },
   "dependencies": {

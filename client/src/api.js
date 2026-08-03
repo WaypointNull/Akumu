@@ -1,5 +1,6 @@
 async function request(path, options = {}) {
   const init = { ...options };
+  // WORKAROUND: GET requests have no body; don't advertise a JSON content type for them.
   if (options.body && !init.headers) {
     init.headers = { 'content-type': 'application/json' };
   }
@@ -8,6 +9,7 @@ async function request(path, options = {}) {
   }
   const res = await fetch(path, init);
   let data;
+  // WORKAROUND: error bodies aren't always valid JSON; don't crash parsing them.
   try {
     data = await res.json();
   } catch {

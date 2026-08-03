@@ -1,9 +1,9 @@
 const { runSinglePipeline } = require('./orchestrator');
 const { generateGlobalPrompt, generateRegionalPrompts, generateMaskPosePrompt } = require('./stages/regional');
-const { canonicalizeConcepts } = require('./canonicalize/service');
 const {
   formatResolutionSummary,
   formatFinalOutput,
+  formatPass3Breakdown,
   buildPositiveBoilerplate,
   buildNegativeBoilerplate,
   formatTagBlock,
@@ -15,9 +15,9 @@ module.exports = {
   generateGlobalPrompt,
   generateRegionalPrompts,
   generateMaskPosePrompt,
-  canonicalizeConcepts,
   formatResolutionSummary,
   formatFinalOutput,
+  formatPass3Breakdown,
   buildPositiveBoilerplate,
   buildNegativeBoilerplate,
   formatTagBlock,

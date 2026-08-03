@@ -2,14 +2,17 @@ const { JUNK_TOKENS } = require('../../config/constants');
 const { dedupeKeepOrder } = require('../../shared/list');
 
 function normalizeTag(tag) {
-  return (tag || '')
-    .trim()
-    .toLowerCase()
-    .replace(/^\d+[\s.:-]+/, '')
-    .replace(/^[-*\s.:]+/, '')
-    .replace(/\s+/g, '_')
-    .replace(/__+/g, '_')
-    .replace(/^_+|_+$/g, '');
+  return (
+    (tag || '')
+      .trim()
+      .toLowerCase()
+      // WORKAROUND: LLMs emit numbered/bulleted lists ("1. ", "- ", "• ") in tag output; those prefixes are not tag content.
+      .replace(/^\d+[\s.:-]+/, '')
+      .replace(/^[-*\s.:]+/, '')
+      .replace(/\s+/g, '_')
+      .replace(/__+/g, '_')
+      .replace(/^_+|_+$/g, '')
+  );
 }
 
 function isUsableTag(tag) {
@@ -19,9 +22,11 @@ function isUsableTag(tag) {
   if (!/^[a-z0-9_()'-]+$/.test(tag)) {
     return false;
   }
+  // WORKAROUND: real tags like "2girls" are shorter than 3 chars after normalization; keep the numeric-girl exception.
   if (tag.length < 3 && !/^\d+(girl|girls|boy|boys)$/.test(tag)) {
     return false;
   }
+  // WORKAROUND: the LLM injects boilerplate tokens ("global_positive", "yes", "no", "ai", "n/a") that are not real tags.
   if (JUNK_TOKENS.has(tag)) {
     return false;
   }
@@ -35,6 +40,7 @@ function splitTags(text) {
       .split(/[\n,]+/)
       .map((value) => normalizeTag(value))
       .filter(Boolean)
+      // WORKAROUND: LoRA triggers must be kept verbatim (see parseLoraInput), not normalized into the tag list.
       .filter((value) => !value.startsWith('<lora:'))
       .filter((value) => !value.startsWith('lora:'))
       .filter((value) => !/^\d+$/.test(value))
@@ -95,6 +101,7 @@ function parseCsvRecords(text) {
 }
 
 function parseCsvLine(line) {
+  // WORKAROUND: the merged danbooru/e621 list has alias lists with commas inside quotes; a naive split(',') mangles them.
   const cols = [];
   let field = '';
   let quoted = false;

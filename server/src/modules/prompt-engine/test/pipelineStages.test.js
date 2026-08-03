@@ -6,7 +6,6 @@ const fs = require('node:fs');
 
 const infer = require('../stages/infer');
 const retrieve = require('../stages/retrieve');
-const canonicalize = require('../stages/canonicalize');
 const format = require('../stages/format');
 
 const ALLOWED = new Set(['blue_hair', 'blonde_hair', 'green_eyes', 'sitting', 'on_rock', '1girl', 'masterpiece']);
@@ -37,63 +36,15 @@ test('retrieve.resolveAll classifies known, exact, alias, rule and ambiguous tag
     retrieval: { resolve: resolver },
     logPath
   };
-  const { records, pending } = retrieve.resolveAll(
-    ['masterpiece', 'blue_hair', 'blonde_hair', 'xyz'],
-    'some request',
-    deps
-  );
+  const { records } = retrieve.resolveAll(['masterpiece', 'blue_hair', 'blonde_hair', 'xyz'], 'some request', deps);
 
   const byOriginal = Object.fromEntries(records.map((r) => [r.original, r]));
   assert.equal(byOriginal.masterpiece.status, 'kept');
   assert.equal(byOriginal.blue_hair.status, 'kept');
   assert.equal(byOriginal.blonde_hair.status, 'alias');
   assert.equal(byOriginal.xyz.status, 'ambiguous');
-  assert.equal(pending.length, 1);
-  assert.equal(pending[0].original, 'xyz');
   assert.ok(fs.existsSync(logPath));
   fs.rmSync(logPath, { force: true });
-});
-
-test('canonicalize.apply is a no-op when disabled', async () => {
-  const records = [{ original: 'xyz', tag: 'xyz', status: 'ambiguous', pendingIndex: 0 }];
-  const pending = [{ index: 0, original: 'xyz', candidates: [] }];
-  let called = false;
-  const result = await canonicalize.apply(
-    records,
-    pending,
-    'request',
-    {
-      enabled: false,
-      model: 'm',
-      canonicalizer: async () => {
-        called = true;
-        return { concepts: [] };
-      }
-    },
-    {}
-  );
-  assert.equal(result, records);
-  assert.equal(called, false);
-});
-
-test('canonicalize.apply resolves ambiguous concepts when enabled', async () => {
-  const records = [{ original: 'xyz', tag: 'xyz', status: 'ambiguous', pendingIndex: 0 }];
-  const pending = [{ index: 0, original: 'xyz', candidates: [{ tag: 'xy' }, { tag: 'xz' }] }];
-  const canonicalizer = async () => ({
-    concepts: [
-      { index: 0, status: 'resolved', accepted: [{ tag: 'xy' }, { tag: 'xz' }], proposed: ['xy'], rejected: [] }
-    ]
-  });
-  const result = await canonicalize.apply(
-    records,
-    pending,
-    'request',
-    { enabled: true, model: 'm', canonicalizer },
-    {}
-  );
-  assert.equal(result[0].status, 'canonicalized');
-  assert.equal(result[0].tag, 'xy');
-  assert.deepEqual(result[0].extraTags, ['xz']);
 });
 
 test('retrieve.resolveAll decomposes compounds whose parts all resolve exactly', () => {

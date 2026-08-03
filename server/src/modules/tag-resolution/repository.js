@@ -55,6 +55,7 @@ function createTagListRepository() {
       }
     }
 
+    // WORKAROUND: the merged danbooru+e621 list maps the same alias to multiple canonicals; pick a deterministic winner.
     for (const [alias, candidates] of collisions) {
       const winner = candidates.reduce((best, candidate) => (candidate.postCount > best.postCount ? candidate : best));
       aliasToCanonical.set(alias, winner.tag);
@@ -78,6 +79,7 @@ function createTagListRepository() {
   async function ensureTagList() {
     fs.mkdirSync(path.dirname(TAG_FILE_PATH), { recursive: true });
 
+    // WORKAROUND: persist the ~30MB CSV to disk and reuse it instead of re-downloading on every boot.
     if (!fs.existsSync(TAG_FILE_PATH)) {
       const response = await fetch(TAG_LIST_URL);
       if (!response.ok) {
