@@ -9,6 +9,7 @@ function createTagListRepository() {
   let aliasToCanonical = new Map();
   let canonicalToAliases = new Map();
   let collisions = new Map();
+  let baseToQualified = new Map();
   let loaded = false;
 
   function loadFromRecords(records) {
@@ -17,6 +18,7 @@ function createTagListRepository() {
     aliasToCanonical = new Map();
     canonicalToAliases = new Map();
     collisions = new Map();
+    baseToQualified = new Map();
 
     for (const record of records) {
       const canonical = normalizeTag(record.tag);
@@ -28,6 +30,18 @@ function createTagListRepository() {
         category: record.category,
         postCount: Number(record.posts) || 0
       });
+    }
+
+    for (const canonical of tagSet) {
+      const match = /^(.*?)_\(([^)]+)\)$/.exec(canonical);
+      if (!match) {
+        continue;
+      }
+      const base = match[1];
+      const list = baseToQualified.get(base) || [];
+      const meta = tagMeta.get(canonical);
+      list.push({ tag: canonical, qualifier: match[2], category: meta.category, postCount: meta.postCount });
+      baseToQualified.set(base, list);
     }
 
     for (const record of records) {
@@ -116,6 +130,11 @@ function createTagListRepository() {
     return canonicalToAliases.get(key) || [];
   }
 
+  function getQualifiedVariants(base) {
+    const key = normalizeTag(base);
+    return baseToQualified.get(key) || [];
+  }
+
   function getAliasCollisions() {
     return collisions;
   }
@@ -141,6 +160,7 @@ function createTagListRepository() {
     resolveAlias,
     getAliasMap,
     getCanonicalAliases,
+    getQualifiedVariants,
     getAliasCollisions,
     resolveTag
   };

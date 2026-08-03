@@ -5,6 +5,8 @@ const OLLAMA_BASE_URL = 'http://127.0.0.1:11434';
 const OLLAMA_URL = `${OLLAMA_BASE_URL}/api/generate`;
 const COMFY_DEFAULT_URL = 'http://127.0.0.1:8188';
 
+const TAG_CATEGORY_COPYRIGHT = 3;
+
 const TAG_LIST_URL =
   'https://raw.githubusercontent.com/DraconicDragon/dbr-e621-lists-archive/refs/heads/main/tag-lists/danbooru_e621_merged/danbooru_e621_merged_2026-04-01_pt20-ia-dd-ed-spc.csv';
 const TAG_FILE_PATH = path.join(__dirname, '..', '..', '..', 'data', 'danbooru-tags.txt');
@@ -151,6 +153,7 @@ module.exports = {
   OLLAMA_BASE_URL,
   OLLAMA_URL,
   COMFY_DEFAULT_URL,
+  TAG_CATEGORY_COPYRIGHT,
   TAG_LIST_URL,
   TAG_FILE_PATH,
   REQUIRED_POSITIVE,

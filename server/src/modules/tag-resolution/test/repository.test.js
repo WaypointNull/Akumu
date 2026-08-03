@@ -12,6 +12,13 @@ const CSV = [
   'green_eyes,general,5000,'
 ].join('\n');
 
+const QUALIFIED_CSV = [
+  'neeko_(aldehyde),4,206,neeko',
+  'neeko_(league_of_legends),4,533,',
+  'league_of_legends,3,70186,',
+  'blue_hair,0,10000,'
+].join('\n');
+
 test('loadFromRecords builds tag set, aliases and collision winners', () => {
   const repo = createTagListRepository();
   const summary = repo.loadFromRecords(parseCsvRecords(CSV));
@@ -55,4 +62,51 @@ test('retrieval index resolves exact, alias and fuzzy matches from a repository'
   const fuzzy = index.resolve('blond_hair');
   assert.equal(fuzzy.status, 'retrieved');
   assert.equal(fuzzy.tag, 'blonde_hair');
+});
+
+test('getQualifiedVariants lists same-base qualified canonicals', () => {
+  const repo = createTagListRepository();
+  repo.loadFromRecords(parseCsvRecords(QUALIFIED_CSV));
+  const variants = repo.getQualifiedVariants('neeko');
+  assert.deepEqual(variants.map((v) => v.tag).sort(), ['neeko_(aldehyde)', 'neeko_(league_of_legends)']);
+  assert.equal(variants.find((v) => v.tag === 'neeko_(league_of_legends)').postCount, 533);
+});
+
+test('resolveTag maps neeko to its danbooru alias default', () => {
+  const repo = createTagListRepository();
+  repo.loadFromRecords(parseCsvRecords(QUALIFIED_CSV));
+  assert.deepEqual(repo.resolveTag('neeko'), { status: 'alias', tag: 'neeko_(aldehyde)' });
+});
+
+test('disambiguateAlias re-qualifies an alias when a prompt tag matches another variant qualifier', () => {
+  const repo = createTagListRepository();
+  repo.loadFromRecords(parseCsvRecords(QUALIFIED_CSV));
+  const index = createRetrievalIndex({ repository: repo });
+
+  const result = index.disambiguateAlias({ status: 'alias', tag: 'neeko_(aldehyde)' }, [
+    'neeko_(aldehyde)',
+    'league_of_legends'
+  ]);
+  assert.deepEqual(result, { status: 'qualified', tag: 'neeko_(league_of_legends)' });
+});
+
+test('disambiguateAlias leaves the alias untouched when no prompt tag matches a variant qualifier', () => {
+  const repo = createTagListRepository();
+  repo.loadFromRecords(parseCsvRecords(QUALIFIED_CSV));
+  const index = createRetrievalIndex({ repository: repo });
+
+  const result = index.disambiguateAlias({ status: 'alias', tag: 'neeko_(aldehyde)' }, ['blue_hair']);
+  assert.deepEqual(result, { status: 'alias', tag: 'neeko_(aldehyde)' });
+});
+
+test('disambiguateAlias prefers the highest-post-count matching variant', () => {
+  const repo = createTagListRepository();
+  repo.loadFromRecords(parseCsvRecords(QUALIFIED_CSV));
+  const index = createRetrievalIndex({ repository: repo });
+
+  const result = index.disambiguateAlias({ status: 'alias', tag: 'neeko_(aldehyde)' }, [
+    'league_of_legends',
+    'aldehyde'
+  ]);
+  assert.deepEqual(result, { status: 'qualified', tag: 'neeko_(league_of_legends)' });
 });

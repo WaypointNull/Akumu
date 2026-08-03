@@ -1,4 +1,4 @@
-const { RETRIEVAL } = require('../../config/constants');
+const { RETRIEVAL, TAG_CATEGORY_COPYRIGHT } = require('../../config/constants');
 const { normalizeTag } = require('./parser');
 const { trigrams, tokenize, damerauLevenshtein } = require('./metrics');
 
@@ -156,6 +156,25 @@ function createRetrievalIndex({ repository }) {
     return out.slice(0, limit);
   }
 
+  function disambiguateAlias(aliasResult, contextTags) {
+    if (!aliasResult || aliasResult.status !== 'alias') return aliasResult;
+    const match = /^(.*?)_\(([^)]+)\)$/.exec(aliasResult.tag);
+    if (!match) return aliasResult;
+    const variants = repository.getQualifiedVariants(match[1]);
+    if (variants.length < 2) return aliasResult;
+    const context = new Set(contextTags.map(normalizeTag));
+    let best = null;
+    for (const variant of variants) {
+      if (variant.tag === aliasResult.tag) continue;
+      if (!context.has(variant.qualifier)) continue;
+      const qualifierMeta = repository.getTagMeta(variant.qualifier);
+      if (!qualifierMeta || Number(qualifierMeta.category) !== TAG_CATEGORY_COPYRIGHT) continue;
+      if (!best || variant.postCount > best.postCount) best = variant;
+    }
+    if (!best) return aliasResult;
+    return { status: 'qualified', tag: best.tag };
+  }
+
   function resolve(query) {
     const pre = repository.resolveTag(query);
     if (pre.status !== 'unknown') return pre;
@@ -207,6 +226,7 @@ function createRetrievalIndex({ repository }) {
     buildIndex,
     retrieve,
     resolve,
+    disambiguateAlias,
     decompose,
     buildConceptCandidates,
     isBuilt: () => !!index

@@ -28,10 +28,13 @@ function formatResolutionSummary(records) {
   if (counts.alias) lines.push(`${counts.alias} alias -> canonical`);
   if (counts.retrieved) lines.push(`${counts.retrieved} auto-replaced (retrieval)`);
   if (counts.decomposed) lines.push(`${counts.decomposed} decomposed into known tags`);
+  if (counts.qualified) lines.push(`${counts.qualified} re-qualified (matched prompt context)`);
   if (counts.ambiguous) lines.push(`${counts.ambiguous} ambiguous (kept original, logged)`);
   if (counts.unknown) lines.push(`${counts.unknown} unknown (kept original)`);
 
-  const replaced = records.filter((r) => r.status === 'alias' || r.status === 'retrieved' || r.status === 'decomposed');
+  const replaced = records.filter(
+    (r) => r.status === 'alias' || r.status === 'retrieved' || r.status === 'decomposed' || r.status === 'qualified'
+  );
   if (replaced.length) {
     lines.push(
       'Replacements: ' +

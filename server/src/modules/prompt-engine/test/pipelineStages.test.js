@@ -7,6 +7,7 @@ const fs = require('node:fs');
 const infer = require('../stages/infer');
 const retrieve = require('../stages/retrieve');
 const format = require('../stages/format');
+const { createTagListRepository, createRetrievalIndex, parseCsvRecords } = require('../../tag-resolution');
 
 const ALLOWED = new Set(['blue_hair', 'blonde_hair', 'green_eyes', 'sitting', 'on_rock', '1girl', 'masterpiece']);
 
@@ -75,6 +76,40 @@ test('retrieve.resolveAll is safe when decomposition is unavailable', () => {
   const deps = { retrieval: { resolve: resolver } };
   const { records } = retrieve.resolveAll(['blue_hair'], 'request', deps);
   assert.equal(records[0].status, 'kept');
+});
+
+test('retrieve.resolveAll re-qualifies an alias to match a prompt franchise', () => {
+  const repo = createTagListRepository();
+  repo.loadFromRecords(
+    parseCsvRecords(
+      ['neeko_(aldehyde),4,206,neeko', 'neeko_(league_of_legends),4,533,', 'league_of_legends,3,70186,'].join('\n')
+    )
+  );
+  const retrieval = createRetrievalIndex({ repository: repo });
+  const { records } = retrieve.resolveAll(['neeko', 'league_of_legends'], 'Neeko from League of Legends', {
+    retrieval
+  });
+
+  const neeko = records.find((r) => r.original === 'neeko');
+  assert.equal(neeko.status, 'qualified');
+  assert.equal(neeko.tag, 'neeko_(league_of_legends)');
+  const league = records.find((r) => r.original === 'league_of_legends');
+  assert.equal(league.status, 'kept');
+});
+
+test('retrieve.resolveAll keeps the alias default when the franchise is absent', () => {
+  const repo = createTagListRepository();
+  repo.loadFromRecords(
+    parseCsvRecords(
+      ['neeko_(aldehyde),4,206,neeko', 'neeko_(league_of_legends),4,533,', 'blue_hair,0,10000,'].join('\n')
+    )
+  );
+  const retrieval = createRetrievalIndex({ repository: repo });
+  const { records } = retrieve.resolveAll(['neeko', 'blue_hair'], 'Neeko with blue hair', { retrieval });
+
+  const neeko = records.find((r) => r.original === 'neeko');
+  assert.equal(neeko.status, 'alias');
+  assert.equal(neeko.tag, 'neeko_(aldehyde)');
 });
 
 test('format.finalize returns promptTags and keeps ambiguous originals', () => {

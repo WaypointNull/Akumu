@@ -8,7 +8,7 @@ const {
   STYLE_BOOSTERS
 } = require('../../../config/constants');
 
-const AMBIGUOUS_LOG_PATH = path.join(__dirname, '..', '..', '..', '..', 'data', 'ambiguous-log.ndjson');
+const AMBIGUOUS_LOG_PATH = path.join(__dirname, '..', '..', '..', '..', '..', 'data', 'ambiguous-log.ndjson');
 
 // WORKAROUND: baseline boilerplate tags must never be rewritten by retrieval, so short-circuit them to "kept" up front.
 const KNOWN_PROMPT_TAGS = new Set([
@@ -21,6 +21,7 @@ const KNOWN_PROMPT_TAGS = new Set([
 
 function appendAmbiguousLog(logPath, entry) {
   try {
+    fs.mkdirSync(path.dirname(logPath), { recursive: true });
     fs.appendFileSync(logPath, `${JSON.stringify(entry)}\n`);
   } catch (error) {
     console.warn('[ambiguous] failed to write log:', error.message);
