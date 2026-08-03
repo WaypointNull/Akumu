@@ -1,5 +1,5 @@
 const fs = require('fs');
-const { DATA_DIR, CASES_FILE, CATEGORY_SIZES, SEED, loadCases } = require('./datasets');
+const { BENCHMARK_DIR, CASES_FILE, CATEGORY_SIZES, SEED, loadCases } = require('./datasets');
 
 function mulberry32(seed) {
   let a = seed >>> 0;
@@ -115,7 +115,7 @@ function generate(deps) {
     aliasCount++;
   }
 
-  fs.mkdirSync(DATA_DIR, { recursive: true });
+  fs.mkdirSync(BENCHMARK_DIR, { recursive: true });
   fs.writeFileSync(
     CASES_FILE,
     JSON.stringify({ version: 1, seed: SEED, generatedAt: new Date().toISOString(), cases }, null, 2),

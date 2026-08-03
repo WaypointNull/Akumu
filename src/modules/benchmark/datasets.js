@@ -2,7 +2,8 @@ const fs = require('fs');
 const path = require('path');
 
 const DATA_DIR = path.join(__dirname, '..', '..', '..', 'data');
-const CASES_FILE = path.join(DATA_DIR, 'benchmark-cases.json');
+const BENCHMARK_DIR = path.join(DATA_DIR, 'benchmark');
+const CASES_FILE = path.join(BENCHMARK_DIR, 'benchmark-cases.json');
 
 const CATEGORY_SIZES = {
   alias: 1500,
@@ -26,6 +27,7 @@ function loadCases() {
 
 module.exports = {
   DATA_DIR,
+  BENCHMARK_DIR,
   CASES_FILE,
   CATEGORY_SIZES,
   SEED,
