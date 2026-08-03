@@ -3,6 +3,12 @@ const { DEFAULTS } = require('../config/constants');
 const { runSinglePipeline, formatFinalOutput } = require('../modules/prompt-engine');
 const { discoverComfyInstallations } = require('../modules/comfy');
 
+function asyncHandler(fn) {
+  return (req, res, next) => {
+    Promise.resolve(fn(req, res, next)).catch(next);
+  };
+}
+
 function createApiRoutes(deps) {
   const router = express.Router();
 
@@ -11,16 +17,12 @@ function createApiRoutes(deps) {
   });
 
   router.get('/comfy/discover', (_req, res) => {
-    try {
-      const discovery = discoverComfyInstallations();
-      res.json({ ok: true, discovery });
-    } catch (error) {
-      res.status(500).json({ error: error.message || 'Could not discover ComfyUI installations.' });
-    }
+    res.json({ ok: true, discovery: discoverComfyInstallations() });
   });
 
-  router.post('/run', async (req, res) => {
-    try {
+  router.post(
+    '/run',
+    asyncHandler(async (req, res) => {
       const naturalLanguage = (req.body.naturalLanguage || '').trim();
       if (!naturalLanguage) {
         res.status(400).json({ error: 'naturalLanguage is required.' });
@@ -37,56 +39,46 @@ function createApiRoutes(deps) {
       );
 
       res.json({ ok: true, ...result });
-    } catch (error) {
-      res.status(500).json({ error: error.message || 'Unexpected server error.' });
-    }
-  });
+    })
+  );
 
   router.post('/format', (req, res) => {
-    try {
-      const tags = Array.isArray(req.body.tags) ? req.body.tags.map((t) => String(t).trim()).filter(Boolean) : [];
-      const loraInput = (req.body.loraInput || '').trim();
-      if (tags.length === 0) {
-        res.status(400).json({ error: 'tags is required.' });
-        return;
-      }
-
-      const formatted = formatFinalOutput({ promptTags: tags, loraInput });
-      res.json({ ok: true, ...formatted });
-    } catch (error) {
-      res.status(500).json({ error: error.message || 'Unexpected server error.' });
+    const tags = Array.isArray(req.body.tags) ? req.body.tags.map((t) => String(t).trim()).filter(Boolean) : [];
+    const loraInput = (req.body.loraInput || '').trim();
+    if (tags.length === 0) {
+      res.status(400).json({ error: 'tags is required.' });
+      return;
     }
+
+    res.json({ ok: true, ...formatFinalOutput({ promptTags: tags, loraInput }) });
   });
 
   router.post('/regional/start', (req, res) => {
-    try {
-      const naturalLanguage = (req.body.naturalLanguage || '').trim();
-      if (!naturalLanguage) {
-        res.status(400).json({ error: 'naturalLanguage is required.' });
-        return;
-      }
-
-      const comfy = deps.regionalPainter.buildComfyConfig(req.body);
-      const jobId = deps.regionalPainter.createRegionalJob({
-        naturalLanguage,
-        modelGlobal: (req.body.modelGlobal || DEFAULTS.modelGlobal).trim(),
-        modelRegional: (req.body.modelRegional || DEFAULTS.modelRegional).trim(),
-        comfy,
-        channelLoras: {
-          red: (req.body.redLoraInput || '').trim(),
-          green: (req.body.greenLoraInput || '').trim(),
-          blue: (req.body.blueLoraInput || '').trim()
-        }
-      });
-
-      res.json({ ok: true, jobId });
-    } catch (error) {
-      res.status(500).json({ error: error.message || 'Could not start regional job.' });
+    const naturalLanguage = (req.body.naturalLanguage || '').trim();
+    if (!naturalLanguage) {
+      res.status(400).json({ error: 'naturalLanguage is required.' });
+      return;
     }
+
+    const comfy = deps.regionalPainter.buildComfyConfig(req.body);
+    const jobId = deps.regionalPainter.createRegionalJob({
+      naturalLanguage,
+      modelGlobal: (req.body.modelGlobal || DEFAULTS.modelGlobal).trim(),
+      modelRegional: (req.body.modelRegional || DEFAULTS.modelRegional).trim(),
+      comfy,
+      channelLoras: {
+        red: (req.body.redLoraInput || '').trim(),
+        green: (req.body.greenLoraInput || '').trim(),
+        blue: (req.body.blueLoraInput || '').trim()
+      }
+    });
+
+    res.json({ ok: true, jobId });
   });
 
-  router.get('/regional/status/:jobId', async (req, res) => {
-    try {
+  router.get(
+    '/regional/status/:jobId',
+    asyncHandler(async (req, res) => {
       const job = await deps.regionalPainter.getRegionalJobStatus(req.params.jobId);
       if (!job) {
         res.status(404).json({ error: 'Job not found.' });
@@ -94,10 +86,8 @@ function createApiRoutes(deps) {
       }
 
       res.json({ ok: true, job });
-    } catch (error) {
-      res.status(500).json({ error: error.message || 'Could not read regional status.' });
-    }
-  });
+    })
+  );
 
   return router;
 }
