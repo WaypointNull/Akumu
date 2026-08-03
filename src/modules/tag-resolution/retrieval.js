@@ -188,10 +188,22 @@ function createRetrievalIndex({ repository }) {
     return { status: 'unknown', tag: pre.tag, candidates };
   }
 
+  function decompose(query) {
+    const key = normalizeTag(query);
+    if (!key) return null;
+    const parts = key.split('_').filter(Boolean);
+    if (parts.length < 2) return null;
+    const resolved = parts.map((p) => repository.resolveTag(p));
+    const exactParts = resolved.filter((r) => r.status === 'exact').map((r) => r.tag);
+    if (exactParts.length === 0) return null;
+    return { full: exactParts.length === parts.length, parts: exactParts };
+  }
+
   return {
     buildIndex,
     retrieve,
     resolve,
+    decompose,
     buildConceptCandidates,
     isBuilt: () => !!index
   };

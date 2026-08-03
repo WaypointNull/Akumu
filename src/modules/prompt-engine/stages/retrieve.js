@@ -30,6 +30,7 @@ function resolveAll(rawTags, naturalLanguage, deps) {
   const records = [];
   const pending = [];
   const resolver = deps.retrieval.resolve;
+  const decompose = deps.retrieval.decompose || (() => null);
   const logPath = deps.logPath || AMBIGUOUS_LOG_PATH;
   for (const original of rawTags) {
     if (KNOWN_PROMPT_TAGS.has(original)) {
@@ -58,36 +59,60 @@ function resolveAll(rawTags, naturalLanguage, deps) {
         margin: r.margin,
         candidates: r.candidates
       });
-    } else if (r.candidates && r.candidates.length) {
-      const pendingIndex = pending.length;
-      records.push({
-        original,
-        tag: original,
-        status: 'ambiguous',
-        action: 'ambiguous',
-        candidates: r.candidates,
-        pendingIndex
-      });
-      pending.push({ index: pendingIndex, original, candidates: r.candidates });
-      const entry = {
-        ts: new Date().toISOString(),
-        request: naturalLanguage,
-        input: original,
-        candidates: r.candidates.slice(0, 10).map((c) => ({
-          tag: c.tag,
-          score: +c.score.toFixed(3),
-          stripMatch: !!c.stripMatch
-        }))
-      };
-      appendAmbiguousLog(logPath, entry);
-      console.warn(
-        `[ambiguous] "${original}" (request: "${naturalLanguage}") -> ${entry.candidates
-          .slice(0, 5)
-          .map((c) => `${c.tag}(${c.score})`)
-          .join(', ')} ...`
-      );
     } else {
-      records.push({ original, tag: original, status: 'unknown', action: 'kept' });
+      let dec = null;
+      try {
+        dec = decompose(original);
+      } catch (error) {
+        console.warn(`[decompose] error for "${original}":`, error.message);
+      }
+      if (dec && dec.full) {
+        console.warn(`[decompose] "${original}" -> ${dec.parts.join(', ')}`);
+        records.push({
+          original,
+          tag: dec.parts[0],
+          extraTags: dec.parts.slice(1),
+          status: 'decomposed',
+          action: 'decomposed'
+        });
+      } else if (r.candidates && r.candidates.length) {
+        const pendingIndex = pending.length;
+        records.push({
+          original,
+          tag: original,
+          status: 'ambiguous',
+          action: 'ambiguous',
+          candidates: r.candidates,
+          decomposed: dec ? dec.parts : [],
+          pendingIndex
+        });
+        pending.push({ index: pendingIndex, original, candidates: r.candidates });
+        const entry = {
+          ts: new Date().toISOString(),
+          request: naturalLanguage,
+          input: original,
+          candidates: r.candidates.slice(0, 10).map((c) => ({
+            tag: c.tag,
+            score: +c.score.toFixed(3),
+            stripMatch: !!c.stripMatch
+          }))
+        };
+        appendAmbiguousLog(logPath, entry);
+        console.warn(
+          `[ambiguous] "${original}" (request: "${naturalLanguage}") -> ${entry.candidates
+            .slice(0, 5)
+            .map((c) => `${c.tag}(${c.score})`)
+            .join(', ')} ...`
+        );
+      } else {
+        records.push({
+          original,
+          tag: original,
+          status: 'unknown',
+          action: 'kept',
+          decomposed: dec ? dec.parts : []
+        });
+      }
     }
   }
 

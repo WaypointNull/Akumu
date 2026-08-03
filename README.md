@@ -64,6 +64,8 @@ Open:
 - LoRA tags should be entered as inline tags, one per line, for example:
   `<lora:neekoil:1.2>`
 - Final output keeps only GLOBAL_POSITIVE and GLOBAL_NEGATIVE.
+- Pass 2 (tag resolution) and Pass 3 (boilerplate formatting) are deterministic — no LLM. Only Pass 1 (translation) uses a model; its selector is the only model field in the Single Prompt panel.
+- Ambiguous tags are resolved transparently: exact/alias/fuzzy matches auto-resolve, invented compounds whose parts all match a real tag auto-decompose, and anything left is kept in the output and shown in the Tag Review panel where you can keep the original, pick a candidate chip, or remove it (the final output re-renders instantly).
 - Regional Painter uses ComfyUI API at `http://127.0.0.1:8188` by default.
 - The server tries to discover ComfyUI installation folders and `models/checkpoints` automatically.
 - Discovery scans common Windows install locations across user profiles, including `AppData/Local` Comfy Desktop installs.

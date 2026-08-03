@@ -88,6 +88,52 @@
         border: 1px solid #3b4f71;
       }
 
+      button.danger {
+        background: #3d1f26;
+        color: var(--danger);
+        border: 1px solid var(--danger);
+      }
+
+      .review-item {
+        display: grid;
+        grid-template-columns: minmax(140px, 1fr) auto auto;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 0;
+        border-bottom: 1px solid #2d394d;
+      }
+
+      .review-item:last-child {
+        border-bottom: none;
+      }
+
+      .review-title {
+        font-family: Consolas, monospace;
+        font-size: 13px;
+        color: var(--text);
+        overflow-wrap: anywhere;
+      }
+
+      .review-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      .review-actions {
+        display: flex;
+        gap: 6px;
+      }
+
+      button.chip {
+        background: #223149;
+        color: var(--text);
+        border: 1px solid #3b4f71;
+        font-weight: 600;
+        font-size: 12px;
+        padding: 4px 10px;
+      }
+
       .row { display: flex; gap: 10px; }
 
       .error {
@@ -216,12 +262,8 @@
         <section class="card">
           <div class="grid">
             <div>
-              <label for="modelTranslate">Pass 1 Model (Translate)</label>
+              <label for="modelTranslate">Model (Translate)</label>
               <input id="modelTranslate" value="qwen2.5:7b" />
-            </div>
-            <div>
-              <label for="modelValidate">Pass 2 Model (Validate)</label>
-              <input id="modelValidate" value="qwen2.5:7b" />
             </div>
           </div>
         </section>
@@ -253,6 +295,12 @@
         <section class="card">
           <label>Pass 3 - Boilerplate Format (deterministic, no LLM)</label>
           <pre id="pass3"></pre>
+        </section>
+
+        <section class="card" id="reviewCard">
+          <label>Tag Review</label>
+          <p class="muted">These tags couldn't be confidently resolved. Keep the original, pick a candidate, or remove it.</p>
+          <div id="review"></div>
         </section>
 
         <section class="card">
@@ -446,6 +494,12 @@
       const pass2El = document.getElementById('pass2');
       const pass3El = document.getElementById('pass3');
       const finalEl = document.getElementById('final');
+      const reviewCardEl = document.getElementById('reviewCard');
+      const reviewEl = document.getElementById('review');
+
+      let promptTags = [];
+      let reviewItems = [];
+      let loraForReview = '';
 
       const regionalStartBtn = document.getElementById('regionalStartBtn');
       const regionalCopyBtn = document.getElementById('regionalCopyBtn');
@@ -559,6 +613,86 @@
         errorEl.textContent = msg;
       }
 
+      function renderReview() {
+        reviewCardEl.style.display = reviewItems.length ? 'block' : 'none';
+        reviewEl.innerHTML = '';
+        for (const item of reviewItems) {
+          const div = document.createElement('div');
+          div.className = 'review-item';
+
+          const title = document.createElement('div');
+          title.className = 'review-title';
+          title.textContent = item.original;
+          title.title = item.status;
+          div.appendChild(title);
+
+          const chips = document.createElement('div');
+          chips.className = 'review-chips';
+          const suggestions = [];
+          for (const t of item.candidates || []) suggestions.push({ tag: t, kind: 'candidate' });
+          for (const t of item.decomposed || []) suggestions.push({ tag: t, kind: 'part' });
+          if (suggestions.length === 0) {
+            const none = document.createElement('span');
+            none.className = 'muted';
+            none.textContent = 'No candidates';
+            chips.appendChild(none);
+          }
+          for (const s of suggestions) {
+            const chip = document.createElement('button');
+            chip.className = 'chip';
+            chip.textContent = s.kind === 'part' ? `${s.tag} (part)` : s.tag;
+            chip.addEventListener('click', () => applyReviewEdit(item.original, [s.tag]));
+            chips.appendChild(chip);
+          }
+          div.appendChild(chips);
+
+          const actions = document.createElement('div');
+          actions.className = 'review-actions';
+          const keep = document.createElement('button');
+          keep.className = 'secondary';
+          keep.textContent = 'Keep Original';
+          keep.addEventListener('click', () => resolveReviewItem(item.original));
+          actions.appendChild(keep);
+          const remove = document.createElement('button');
+          remove.className = 'danger';
+          remove.textContent = 'Remove';
+          remove.addEventListener('click', () => applyReviewEdit(item.original, []));
+          actions.appendChild(remove);
+          div.appendChild(actions);
+
+          reviewEl.appendChild(div);
+        }
+      }
+
+      function resolveReviewItem(original) {
+        reviewItems = reviewItems.filter((i) => i.original !== original);
+        renderReview();
+      }
+
+      async function applyReviewEdit(original, replacement) {
+        const idx = promptTags.indexOf(original);
+        const next = promptTags.filter((t) => t !== original);
+        if (idx !== -1) {
+          next.splice(idx, 0, ...replacement);
+        }
+        promptTags = next;
+        try {
+          const res = await fetch('/api/format', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ tags: promptTags, loraInput: loraForReview })
+          });
+          const data = await res.json();
+          if (!res.ok || data.error) {
+            throw new Error(data.error || `Request failed (${res.status})`);
+          }
+          finalEl.textContent = data.finalText || '';
+        } catch (err) {
+          setError(err.message || 'Failed to re-format.');
+        }
+        resolveReviewItem(original);
+      }
+
       runBtn.addEventListener('click', async () => {
         setError('');
         runBtn.disabled = true;
@@ -568,13 +702,15 @@
         pass2El.textContent = '';
         pass3El.textContent = '';
         finalEl.textContent = '';
+        promptTags = [];
+        reviewItems = [];
+        renderReview();
 
         try {
           const payload = {
             naturalLanguage: document.getElementById('naturalLanguage').value,
             loraInput: document.getElementById('loraInput').value,
-            modelTranslate: document.getElementById('modelTranslate').value,
-            modelValidate: document.getElementById('modelValidate').value
+            modelTranslate: document.getElementById('modelTranslate').value
           };
 
           const res = await fetch('/api/run', {
@@ -592,6 +728,10 @@
           pass2El.textContent = data.passes.validate || '';
           pass3El.textContent = data.passes.format || '';
           finalEl.textContent = data.final.finalText || '';
+          promptTags = (data.final.promptTags || []).slice();
+          loraForReview = payload.loraInput;
+          reviewItems = (data.review || []).slice();
+          renderReview();
         } catch (err) {
           setError(err.message || 'Unexpected error');
         } finally {

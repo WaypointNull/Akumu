@@ -27,7 +27,7 @@ function finalize({ records, candidates, loraInput, tagSet }) {
 
   const formatted = formatFinalOutput({ promptTags, loraInput });
 
-  return { summary, formatted };
+  return { summary, formatted, promptTags };
 }
 
 module.exports = { finalize };

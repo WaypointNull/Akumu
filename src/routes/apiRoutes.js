@@ -1,6 +1,6 @@
 const express = require('express');
 const { DEFAULTS } = require('../config/constants');
-const { runSinglePipeline } = require('../modules/prompt-engine');
+const { runSinglePipeline, formatFinalOutput } = require('../modules/prompt-engine');
 const { discoverComfyInstallations } = require('../modules/comfy');
 
 function createApiRoutes(deps) {
@@ -31,13 +31,28 @@ function createApiRoutes(deps) {
         {
           naturalLanguage,
           loraInput: (req.body.loraInput || '').trim(),
-          modelTranslate: (req.body.modelTranslate || DEFAULTS.modelTranslate).trim(),
-          modelValidate: (req.body.modelValidate || DEFAULTS.modelValidate).trim()
+          modelTranslate: (req.body.modelTranslate || DEFAULTS.modelTranslate).trim()
         },
         deps
       );
 
       res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(500).json({ error: error.message || 'Unexpected server error.' });
+    }
+  });
+
+  router.post('/format', (req, res) => {
+    try {
+      const tags = Array.isArray(req.body.tags) ? req.body.tags.map((t) => String(t).trim()).filter(Boolean) : [];
+      const loraInput = (req.body.loraInput || '').trim();
+      if (tags.length === 0) {
+        res.status(400).json({ error: 'tags is required.' });
+        return;
+      }
+
+      const formatted = formatFinalOutput({ promptTags: tags, loraInput });
+      res.json({ ok: true, ...formatted });
     } catch (error) {
       res.status(500).json({ error: error.message || 'Unexpected server error.' });
     }

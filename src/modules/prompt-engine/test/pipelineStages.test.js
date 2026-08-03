@@ -96,6 +96,55 @@ test('canonicalize.apply resolves ambiguous concepts when enabled', async () => 
   assert.deepEqual(result[0].extraTags, ['xz']);
 });
 
+test('retrieve.resolveAll decomposes compounds whose parts all resolve exactly', () => {
+  const resolver = (tag) =>
+    ['dark', 'skinned', 'female', 'confused'].includes(tag)
+      ? { status: 'exact', tag }
+      : { status: 'unknown', tag, candidates: [] };
+  const decompose = (tag) =>
+    tag === 'dark_skinned_girl'
+      ? { full: true, parts: ['dark', 'skinned', 'female'] }
+      : tag === 'confused_expression'
+        ? { full: false, parts: ['confused'] }
+        : null;
+  const deps = { retrieval: { resolve: resolver, decompose } };
+
+  const { records } = retrieve.resolveAll(['dark_skinned_girl', 'confused_expression'], 'request', deps);
+  const byOriginal = Object.fromEntries(records.map((r) => [r.original, r]));
+
+  assert.equal(byOriginal.dark_skinned_girl.status, 'decomposed');
+  assert.equal(byOriginal.dark_skinned_girl.tag, 'dark');
+  assert.deepEqual(byOriginal.dark_skinned_girl.extraTags, ['skinned', 'female']);
+  assert.equal(byOriginal.confused_expression.status, 'unknown');
+  assert.deepEqual(byOriginal.confused_expression.decomposed, ['confused']);
+});
+
+test('retrieve.resolveAll is safe when decomposition is unavailable', () => {
+  const resolver = (tag) => ({ status: 'exact', tag });
+  const deps = { retrieval: { resolve: resolver } };
+  const { records } = retrieve.resolveAll(['blue_hair'], 'request', deps);
+  assert.equal(records[0].status, 'kept');
+});
+
+test('format.finalize returns promptTags and keeps ambiguous originals', () => {
+  const records = [
+    { original: 'blue_hair', tag: 'blue_hair', status: 'kept' },
+    { original: 'dark_skinned_girl', tag: 'dark', extraTags: ['skinned', 'female'], status: 'decomposed' },
+    { original: 'confused_expression', tag: 'confused_expression', status: 'ambiguous' }
+  ];
+  const { summary, formatted, promptTags } = format.finalize({
+    records,
+    candidates: [],
+    loraInput: '',
+    tagSet: new Set([...ALLOWED, 'dark', 'skinned', 'female'])
+  });
+  assert.match(summary, /decomposed into known tags/);
+  assert.ok(promptTags.includes('dark'));
+  assert.ok(promptTags.includes('skinned'));
+  assert.ok(promptTags.includes('confused_expression'));
+  assert.ok(formatted.finalText.includes('confused_expression'));
+});
+
 test('format.finalize produces summary and capped prompt tags', () => {
   const records = [
     { original: 'blue_hair', tag: 'blue_hair', status: 'kept' },

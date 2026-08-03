@@ -19,7 +19,16 @@ async function runSinglePipeline({ naturalLanguage, loraInput = '', modelTransla
     { model: selectedModelValidate, enabled: false },
     deps
   );
-  const { summary, formatted } = format.finalize({ records, candidates, loraInput, tagSet });
+  const { summary, formatted, promptTags } = format.finalize({ records, candidates, loraInput, tagSet });
+
+  const review = records
+    .filter((r) => r.status === 'ambiguous' || r.status === 'unknown')
+    .map((r) => ({
+      original: r.original,
+      status: r.status,
+      candidates: (r.candidates || []).slice(0, 3).map((c) => c.tag),
+      decomposed: r.decomposed || []
+    }));
 
   return {
     models: {
@@ -32,7 +41,11 @@ async function runSinglePipeline({ naturalLanguage, loraInput = '', modelTransla
       validate: summary,
       format: '[deterministic] boilerplate formatter applied (no LLM)'
     },
-    final: formatted
+    final: {
+      ...formatted,
+      promptTags
+    },
+    review
   };
 }
 
