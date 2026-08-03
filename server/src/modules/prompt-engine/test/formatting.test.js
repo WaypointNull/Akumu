@@ -7,7 +7,6 @@ const {
   buildPositiveBoilerplate,
   buildNegativeBoilerplate,
   formatFinalOutput,
-  mergeChannelLoras,
   formatTagBlock
 } = require('../formatter');
 const { REQUIRED_POSITIVE, REQUIRED_NEGATIVE } = require('../../../config/constants');
@@ -44,14 +43,6 @@ test('formatFinalOutput: respects the content cap', () => {
   const out = formatFinalOutput({ promptTags: ['sitting', 'blue_hair', 'red_hair', 'green_hair'], cap: 2 });
   const contentCount = out.positiveTags.filter((t) => !buildPositiveBoilerplate().includes(t)).length;
   assert.equal(contentCount, 2);
-});
-
-test('mergeChannelLoras: dedupes and preserves order (loras first)', () => {
-  assert.deepEqual(mergeChannelLoras(['<lora:a:1.0>'], ['sitting', 'sitting', 'blue_hair']), [
-    '<lora:a:1.0>',
-    'sitting',
-    'blue_hair'
-  ]);
 });
 
 test('formatResolutionSummary: reports status counts and replacements', () => {

@@ -3,7 +3,6 @@ const path = require('path');
 const PORT = 5177;
 const OLLAMA_BASE_URL = 'http://127.0.0.1:11434';
 const OLLAMA_URL = `${OLLAMA_BASE_URL}/api/generate`;
-const COMFY_DEFAULT_URL = 'http://127.0.0.1:8188';
 
 const TAG_CATEGORY_COPYRIGHT = 3;
 
@@ -124,35 +123,20 @@ const RETRIEVAL = {
 };
 
 const DEFAULTS = {
-  modelTranslate: 'qwen2.5:7b',
-  modelGlobal: 'qwen2.5:7b',
-  modelRegional: 'qwen2.5:7b'
-};
-
-const COMFY_DEFAULTS = {
-  width: 512,
-  height: 512,
-  steps: 12,
-  cfg: 2.5,
-  sampler: 'euler',
-  scheduler: 'normal',
-  clipSkip: -2,
-  simpleMaskDelayMs: 650
+  modelTranslate: 'qwen2.5:7b'
 };
 
 const FORMAT = {
   candidateCap: 120,
   validatedMin: 24,
   validatedCap: 60,
-  promptTagCap: 85,
-  maskPoseCap: 40
+  promptTagCap: 85
 };
 
 module.exports = {
   PORT,
   OLLAMA_BASE_URL,
   OLLAMA_URL,
-  COMFY_DEFAULT_URL,
   TAG_CATEGORY_COPYRIGHT,
   TAG_LIST_URL,
   TAG_FILE_PATH,
@@ -164,6 +148,5 @@ module.exports = {
   JUNK_TOKENS,
   RETRIEVAL,
   DEFAULTS,
-  COMFY_DEFAULTS,
   FORMAT
 };

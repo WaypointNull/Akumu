@@ -28,28 +28,10 @@ export const api = {
   llmStatus() {
     return request('/api/llm/status');
   },
-  discover() {
-    return request('/api/comfy/discover');
-  },
   run(payload) {
     return request('/api/run', { method: 'POST', body: payload });
   },
   format(tags, loraInput) {
     return request('/api/format', { method: 'POST', body: { tags, loraInput } });
-  },
-  startRegional(payload) {
-    return request('/api/regional/start', { method: 'POST', body: payload });
-  },
-  regionalStatus(jobId) {
-    return request(`/api/regional/status/${encodeURIComponent(jobId)}`);
-  },
-  sceneStatus(baseUrl) {
-    return request(`/api/scene/status?baseUrl=${encodeURIComponent(baseUrl)}`);
-  },
-  generateScene(payload) {
-    return request('/api/scene/generate', { method: 'POST', body: payload });
-  },
-  sceneJob(jobId) {
-    return request(`/api/scene/status/${encodeURIComponent(jobId)}`);
   }
 };

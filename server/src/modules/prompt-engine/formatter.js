@@ -115,16 +115,11 @@ function formatPass3Breakdown({ promptTags, loraInput, cap = FORMAT.promptTagCap
   return lines.join('\n');
 }
 
-function mergeChannelLoras(channelLoraTags, channelPromptTags) {
-  return dedupeKeepOrder([...(channelLoraTags || []), ...(channelPromptTags || [])]);
-}
-
 module.exports = {
   formatTagBlock,
   formatResolutionSummary,
   buildPositiveBoilerplate,
   buildNegativeBoilerplate,
   formatFinalOutput,
-  formatPass3Breakdown,
-  mergeChannelLoras
+  formatPass3Breakdown
 };
