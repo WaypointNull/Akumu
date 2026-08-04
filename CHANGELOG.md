@@ -4,6 +4,48 @@ All the ways this project has made me question my choices. In order.
 
 ---
 
+## 1.2.1 — *"Small fixes, UwU"*
+
+**The stress test finally knows about LoRAs.**
+
+My LoRA feature was going untested — a nightmare in disguise. The stress cases now carry their own made-up trigger lists, and each run reports how many output tags are echoes of them.
+
+Speaking of echoes: they're gone. The LLM loved to repeat the trigger list back into the descriptor tags (so the Global Output said "veil, tiara, long black sleeveless dress" twice). A deterministic strip now drops any descriptor tag that duplicates a trigger phrase, since the formatter already appends the trigger list verbatim anyway.
+
+**New noise filter.**
+
+Junk compounds like `library_setting -> library, setting` or `light_clothed -> light, clothed` no longer auto-accept into the output. Those parts are too vague to stand alone, so they go to review instead.
+
+**Prompt adjusted... again.**
+
+Few-shot examples rebuilt from real high-rated Danbooru posts (score 300+). Turns out there are other tools doing this whole "natural language to booru tags" thing, and I'd built a nightmare of a tool without studying them first :3
+
+**A safeguard for the stop words.**
+
+`format.js` now checks whether the resolved tags actually share any words with the input. If the LLM hallucinates a whole scene ("Test tag, please ignore" -> 20 invented tags, anyone?), the unanchored tags get withheld from the output instead of shipped.
+
+---
+
+## 1.2.0 — *"Maybe the LLM shouldn't have a nightmare as a treat after all"*
+
+**Creative mode grew up.**
+
+It's no longer a separate LLM call. Same model, same temperature — the mode only changes what the validator does with invented tags. Strict rewrites them; Creative surfaces them to review like the little hallucinations they are.
+
+**The NSFW filter got more teeth.**
+
+More stems (`nude`, `naked`, `underwear`, `lingerie`, `feces`, `condom`...) and exact tokens (`ass`, `butt`, `anal`...). A filter that misses `candle_in_ass` is a filter that's not trying.
+
+**Fought the low tag count... and overcorrected.**
+
+The prompt was reworked to stop the LLM from summarizing a whole scene into six tags. Which, of course, immediately swung the other way into a nightmare of padding and category-word spam. You know. Balance.
+
+**Duplicates no longer number themselves.**
+
+The `please_ignore_1` ... `please_ignore_20` era is over. Numbered padding collapses; real numbered tags like `figure_17` survive.
+
+---
+
 ## 1.1.0 — *The "Let the AI have a nightmare as a treat" release*
 
 **New: Creative mode.**

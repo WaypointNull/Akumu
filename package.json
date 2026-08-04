@@ -1,6 +1,6 @@
 {
   "name": "akumu",
-  "version": "1.1.0",
+  "version": "1.2.1",
   "private": true,
   "description": "Turn natural language into booru-style prompt tags with Ollama.",
   "author": "WaypointNull",
