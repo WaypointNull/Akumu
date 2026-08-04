@@ -30,6 +30,16 @@
 
 <div align="center">
 
+### The whole thing, in one screenshot:
+
+![Akumu screenshot](client/public/screenshot.png)
+
+</div>
+
+---
+
+<div align="center">
+
 ## Why?
 
 Because manually writing Danbooru prompts is a special kind of misery.
