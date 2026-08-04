@@ -2,6 +2,7 @@ const express = require('express');
 const { DEFAULTS } = require('../config/constants');
 const { runSinglePipeline, formatFinalOutput } = require('../modules/prompt-engine');
 const { ollamaStatus } = require('../modules/llm');
+const hubAdapter = require('../hubAdapter');
 
 function asyncHandler(fn) {
   return (req, res, next) => {
@@ -47,6 +48,8 @@ function createApiRoutes(deps) {
         },
         deps
       );
+
+      hubAdapter.emitRunRecord(req, result).catch(() => {});
 
       res.json({ ok: true, ...result });
     })

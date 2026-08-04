@@ -1,6 +1,7 @@
 const { PORT } = require('./src/config/constants');
 const { createApp } = require('./src/app');
 const { createContainer } = require('./src/container');
+const hubAdapter = require('./src/hubAdapter');
 
 async function start(options = {}) {
   const deps = createContainer();
@@ -18,6 +19,9 @@ async function start(options = {}) {
     console.log(
       `Retrieval index: ${indexSummary.tags} tags, ${indexSummary.trigrams} trigrams, ${indexSummary.terms} terms.`
     );
+    if (hubAdapter.isEnabled()) {
+      hubAdapter.signalReady().catch(() => {});
+    }
   });
 }
 
