@@ -112,6 +112,41 @@ test('retrieval: resolve never surfaces NSFW candidates, explicit NSFW tags stil
   assert.ok(fuzzy.candidates.some((c) => c.tag === 'cat_on_surface'));
 });
 
+test('retrieval: NSFW filter blocks nude/panties/feces/condom stems and ass/butt/blood exact tokens', () => {
+  const repo = createTagListRepository();
+  repo.loadFromRecords(
+    parseCsvRecords(
+      [
+        'nude_library,0,50,',
+        'panties_visible,7,30,',
+        'feces_on_self,7,30,',
+        'condom_in_hair,7,30,',
+        'blood_on_wall,7,40,',
+        'candle_in_ass,7,30,',
+        'barely_visible_butt,7,30,',
+        'anal_play,7,30,',
+        'bloodborne,3,5000,',
+        'on_surface,0,400,'
+      ].join('\n')
+    )
+  );
+  const index = createRetrievalIndex({ repository: repo });
+
+  const fuzzy = index.resolve('nude_libary');
+  const tags = (fuzzy.candidates || []).map((c) => c.tag);
+  assert.ok(!tags.includes('nude_library'));
+  assert.ok(!tags.includes('panties_visible'));
+  assert.ok(!tags.includes('feces_on_self'));
+  assert.ok(!tags.includes('condom_in_hair'));
+  assert.ok(!tags.includes('blood_on_wall'));
+  assert.ok(!tags.includes('candle_in_ass'));
+  assert.ok(!tags.includes('barely_visible_butt'));
+  assert.ok(!tags.includes('anal_play'));
+
+  const franchise = index.resolve('bloodborne');
+  assert.deepEqual(franchise, { status: 'exact', tag: 'bloodborne' });
+});
+
 test('disambiguateAlias re-qualifies an alias when a prompt tag matches another variant qualifier', () => {
   const repo = createTagListRepository();
   repo.loadFromRecords(parseCsvRecords(QUALIFIED_CSV));

@@ -44,10 +44,18 @@ const NSFW_CONTENT_PREFIX_STEMS = new Set([
   'squirting',
   'fuck',
   'pee',
-  'fellatio'
+  'fellatio',
+  'nude',
+  'naked',
+  'panties',
+  'panty',
+  'underwear',
+  'lingerie',
+  'feces',
+  'condom'
 ]);
 
-const NSFW_CONTENT_EXACT_TOKENS = new Set(['balls', 'sex']);
+const NSFW_CONTENT_EXACT_TOKENS = new Set(['balls', 'sex', 'blood', 'ass', 'butt', 'anal']);
 
 const TAG_LIST_URL =
   'https://raw.githubusercontent.com/DraconicDragon/dbr-e621-lists-archive/refs/heads/main/tag-lists/danbooru_e621_merged/danbooru_e621_merged_2026-04-01_pt20-ia-dd-ed-spc.csv';
@@ -168,7 +176,11 @@ const RETRIEVAL = {
   // not be out-scored by "cum_on_surface", which only wins on raw trigram overlap). Weight moved from
   // bm25 since both encode token overlap; tokenPreserve is normalized to [0,1].
   weights: { trigram: 0.3, damerau: 0.5, bm25: 0.1, tokenPreserve: 0.1 },
-  bm25: { k1: 1.5, b: 0.75 }
+  bm25: { k1: 1.5, b: 0.75 },
+  // WORKAROUND: candidates below this bar are noise (LLM padding like "please_ignore_1" scores ~0.42
+  // against junk suggestions); ambiguous entries whose best candidate can't clear it add no signal
+  // to the ambiguous log, so they are not written.
+  logFloor: 0.45
 };
 
 const DEFAULTS = {

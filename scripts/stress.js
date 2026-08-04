@@ -30,7 +30,8 @@ const PROMPTS = [
   'a winter fairy with snowflakes in her hair standing in a frozen pine forest, aurora overhead',
   'a biker girl leaning on a motorcycle in an alley, leather jacket, neon bar sign, wet asphalt',
   'an elf archer drawing a glowing bow in a misty ancient forest, mossy ruins, fireflies',
-  'a girl in a kimono holding a paper lantern at a summer festival, fireworks, yukata crowd'
+  'a girl in a kimono holding a paper lantern at a summer festival, fireworks, yukata crowd',
+  'Test tag, please ignore'
 ];
 
 function truncate(s, n = 120) {

@@ -19,18 +19,26 @@ test('infer.translate parses raw tags and drops section labels', async () => {
   assert.deepEqual(result.tags, ['blue_hair', 'red_hair', 'sitting']);
 });
 
-test('infer.translate uses the creative prompt when mode is creative', async () => {
-  let seenSystem = '';
+test('infer.translate ignores mode and uses the same dense 20-40 tag prompt in every mode', async () => {
+  const calls = [];
   const deps = {
     llm: {
-      ollamaGenerate: async (_model, system, _prompt) => {
-        seenSystem = system;
+      ollamaGenerate: async (_model, system, prompt) => {
+        calls.push({ system, prompt });
         return 'blue_hair';
       }
     }
   };
+  await infer.translate('a girl', { model: 'test-model', mode: 'strict' }, deps);
   await infer.translate('a girl', { model: 'test-model', mode: 'creative' }, deps);
-  assert.match(seenSystem, /compose descriptive compound tags/);
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].system, calls[1].system);
+  assert.equal(calls[0].prompt, calls[1].prompt);
+  assert.match(calls[0].prompt, /at least 20/);
+  assert.match(calls[0].prompt, /individual details/);
+  assert.match(calls[0].system, /smallest meaningful details/);
+  assert.match(calls[0].system, /existing Danbooru tags/);
+  assert.ok(!calls[0].system.includes('compose descriptive compound tags'));
 });
 
 test('infer.translate feeds LoRA tags to the LLM as context', async () => {
@@ -190,6 +198,46 @@ test('retrieve.resolveAll in creative mode keeps exact matches as kept', () => {
   assert.equal(records[0].status, 'kept');
 });
 
+test('retrieve.collapseNumberedDuplicates collapses invented numbered padding into a single tag', () => {
+  const isKnown = (tag) => ['figure_17'].includes(tag);
+  const input = [
+    'please_ignore_1',
+    'please_ignore_2',
+    'please_ignore_3',
+    'please_ignore_4',
+    'figure_17',
+    'figure_18',
+    'figure_19',
+    'test_tag'
+  ];
+  const out = retrieve.collapseNumberedDuplicates(input, isKnown);
+  assert.deepEqual(out, ['please_ignore_1', 'figure_17', 'figure_18', 'figure_19', 'test_tag']);
+});
+
+test('retrieve.collapseNumberedDuplicates leaves fewer than three variants alone', () => {
+  const out = retrieve.collapseNumberedDuplicates(['please_ignore_1', 'please_ignore_2'], () => false);
+  assert.deepEqual(out, ['please_ignore_1', 'please_ignore_2']);
+});
+
+test('retrieve.resolveAll collapses padded numbering and skips weak ambiguous log spam', () => {
+  const resolver = (tag) => {
+    if (tag === 'test_tag') return { status: 'unknown', tag, candidates: [{ tag: 'test_tube', score: 0.6 }] };
+    if (tag === 'please_ignore_1')
+      return { status: 'unknown', tag, candidates: [{ tag: 'please_respond', score: 0.42 }] };
+    return { status: 'unknown', tag, candidates: [] };
+  };
+  const logPath = path.join(os.tmpdir(), 'ambiguous-log-padding.ndjson');
+  const deps = { retrieval: { resolve: resolver }, logPath };
+  const tags = ['test_tag', ...Array.from({ length: 20 }, (_, i) => `please_ignore_${i + 1}`)];
+
+  const { records } = retrieve.resolveAll(tags, 'Test tag, please ignore', deps);
+  assert.equal(records.length, 2);
+  const log = fs.existsSync(logPath) ? fs.readFileSync(logPath, 'utf8').split('\n').filter(Boolean) : [];
+  assert.equal(log.length, 1);
+  assert.ok(log[0].includes('test_tag'));
+  fs.rmSync(logPath, { force: true });
+});
+
 test('retrieve.resolveAll re-qualifies an alias to match a prompt franchise', () => {
   const repo = createTagListRepository();
   repo.loadFromRecords(
@@ -261,6 +309,74 @@ test('format.finalize keeps creative-mode originals even when not in the tag set
   });
   assert.ok(promptTags.includes('red_flannel_jacket'));
   assert.ok(formatted.finalText.includes('red_flannel_jacket'));
+});
+
+test('format.finalize withholds junk tags from the output when content is low', () => {
+  const records = [
+    { original: 'test_tag', tag: 'test_tag', status: 'ambiguous', candidates: [{ tag: 'test_tube', score: 0.6 }] },
+    { original: 'please_ignore_1', tag: 'please_ignore_1', status: 'unknown' },
+    { original: 'blue_hair', tag: 'blue_hair', status: 'kept' }
+  ];
+  const { promptTags, summary, formatted, lowContent } = format.finalize({
+    records,
+    candidates: [],
+    loraInput: '',
+    tagSet: ALLOWED
+  });
+  assert.equal(lowContent, true);
+  assert.ok(promptTags.includes('blue_hair'));
+  assert.ok(!promptTags.includes('test_tag'));
+  assert.ok(!promptTags.includes('please_ignore_1'));
+  assert.ok(!formatted.finalText.includes('test_tag'));
+  assert.match(summary, /Low content/);
+});
+
+test('format.finalize does not smuggle raw candidates past the low-content guard', () => {
+  const records = [
+    { original: 'test_tag', tag: 'test_tag', status: 'ambiguous', candidates: [{ tag: 'test_tube', score: 0.6 }] },
+    { original: 'please_ignore', tag: 'please_ignore', status: 'unknown' },
+    { original: 'testing', tag: 'testing', status: 'ambiguous' }
+  ];
+  const { promptTags, lowContent } = format.finalize({
+    records,
+    candidates: ['1girl', 'blue_hair'],
+    loraInput: '',
+    tagSet: ALLOWED
+  });
+  assert.equal(lowContent, true);
+  assert.deepEqual(promptTags, []);
+});
+
+test('format.finalize still keeps raw candidates when content is solid', () => {
+  const records = [
+    { original: 'blue_hair', tag: 'blue_hair', status: 'kept' },
+    { original: 'green_eyes', tag: 'green_eyes', status: 'kept' }
+  ];
+  const { promptTags, lowContent } = format.finalize({
+    records,
+    candidates: ['sitting', '1girl'],
+    loraInput: '',
+    tagSet: ALLOWED
+  });
+  assert.equal(lowContent, false);
+  assert.ok(promptTags.includes('sitting'));
+  assert.ok(promptTags.includes('1girl'));
+});
+
+test('format.finalize keeps ambiguous tags when solid content outweighs the junk', () => {
+  const records = [
+    { original: 'blue_hair', tag: 'blue_hair', status: 'kept' },
+    { original: 'blonde_hair', tag: 'blonde_hair', status: 'kept' },
+    { original: 'confused_expression', tag: 'confused_expression', status: 'ambiguous' }
+  ];
+  const { promptTags, lowContent } = format.finalize({
+    records,
+    candidates: [],
+    loraInput: '',
+    tagSet: ALLOWED
+  });
+  assert.equal(lowContent, false);
+  assert.ok(promptTags.includes('confused_expression'));
 });
 
 test('format.finalize produces summary and capped prompt tags', () => {

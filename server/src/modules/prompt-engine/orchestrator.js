@@ -9,14 +9,10 @@ async function runSinglePipeline({ naturalLanguage, loraInput = '', modelTransla
   const selectedModelTranslate = (modelTranslate || DEFAULTS.modelTranslate).trim();
   const tagSet = deps.repository.getTagSet();
 
-  const translated = await infer.translate(
-    naturalLanguage,
-    { model: selectedModelTranslate, mode: selectedMode, loraInput },
-    deps
-  );
+  const translated = await infer.translate(naturalLanguage, { model: selectedModelTranslate, loraInput }, deps);
   const candidates = infer.candidatesFromTagList(translated.tags, tagSet);
   const resolution = retrieve.resolveAll(translated.tags, naturalLanguage, deps, selectedMode);
-  const { summary, formatted, promptTags } = format.finalize({
+  const { summary, formatted, promptTags, lowContent } = format.finalize({
     records: resolution.records,
     candidates,
     loraInput,
@@ -40,6 +36,7 @@ async function runSinglePipeline({ naturalLanguage, loraInput = '', modelTransla
       modelFormat: null
     },
     mode: selectedMode,
+    lowContent: !!lowContent,
     passes: {
       translate: translated.raw,
       validate: summary,

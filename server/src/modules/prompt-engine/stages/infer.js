@@ -3,14 +3,16 @@ const { dedupeKeepOrder } = require('../../../shared/list');
 const { splitTags, isSectionLabel, isUsableTag } = require('../../tag-resolution');
 const { FORMAT } = require('../../../config/constants');
 
-const MODE_TEMPERATURE = { strict: 0.15, creative: 0.55 };
+// WORKAROUND: mode must never touch the LLM (same prompt, same temperature); creative mode is a
+// validator-side decision only, so the translate stage is deliberately mode-agnostic.
+const TRANSLATE_TEMPERATURE = 0.15;
 
-async function translate(naturalLanguage, { model, mode = 'strict', loraInput = '' }, deps) {
+async function translate(naturalLanguage, { model, loraInput = '' }, deps) {
   const raw = await deps.llm.ollamaGenerate(
     model,
-    buildPass1System(mode),
-    buildPass1Prompt(naturalLanguage, mode, loraInput),
-    MODE_TEMPERATURE[mode] ?? MODE_TEMPERATURE.strict
+    buildPass1System(),
+    buildPass1Prompt(naturalLanguage, loraInput),
+    TRANSLATE_TEMPERATURE
   );
   // WORKAROUND: the LLM tends to emit section headers ("Positive:", "Quality:") instead of pure tags; strip them.
   const tags = splitTags(raw).filter((tag) => !isSectionLabel(tag));

@@ -116,6 +116,7 @@ test('POST /api/run returns the full pipeline result', async (t) => {
   assert.ok(Array.isArray(res.json.review));
   assert.ok(res.json.passes.translate);
   assert.equal(res.json.mode, 'strict');
+  assert.equal(res.json.lowContent, false);
 });
 
 test('POST /api/run defaults to strict mode and echoes an invalid mode as strict', async (t) => {

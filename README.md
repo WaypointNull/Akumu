@@ -8,23 +8,19 @@
 
 ### *Without sacrificing your sanity to tag autocomplete.*
 
-<br>
-
-<img src="client/public/akumu.png" alt="Akumu" width="160"/>
-
-<br>
-
-<img alt="Node" src="https://img.shields.io/badge/node-%3E%3D18-339933?style=for-the-badge" />
-<img alt="Runtime" src="https://img.shields.io/badge/runtime-Ollama%20%2B%20Express%20%2B%20Vue%203-4f5bd5?style=for-the-badge" />
-<img alt="License" src="https://img.shields.io/badge/license-WaypointNull%20v1.0-2e7d5b?style=for-the-badge" />
-
-<br>
-
-<a href="https://buymeacoffee.com/waypointnull">
-<img alt="Buy me a coffee" src="https://img.shields.io/badge/Buy_Me_A_Coffee-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black" />
-</a>
-
 </div>
+
+<br>
+
+<div align="center"><img src="client/public/akumu.png" alt="Akumu" width="160"/></div>
+
+<br>
+
+<div align="center"><img alt="Node" src="https://img.shields.io/badge/node-%3E%3D18-339933?style=for-the-badge" /><img alt="Runtime" src="https://img.shields.io/badge/runtime-Ollama%20%2B%20Express%20%2B%20Vue%203-4f5bd5?style=for-the-badge" /><img alt="License" src="https://img.shields.io/badge/license-WaypointNull%20v1.0-2e7d5b?style=for-the-badge" /></div>
+
+<br>
+
+<div align="center"><a href="https://buymeacoffee.com/waypointnull"><img alt="Buy me a coffee" src="https://img.shields.io/badge/Buy_Me_A_Coffee-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black" /></a></div>
 
 ---
 

@@ -58,8 +58,12 @@ const ollamaLabel = computed(() => {
 });
 
 const modeOptions = [
-  { label: 'Strict', value: 'strict', description: 'Every tag is fact-checked against the tag list.' },
-  { label: 'Creative', value: 'creative', description: 'The AI may invent tags; you approve each one.' }
+  { label: 'Strict', value: 'strict', description: 'Every tag is fact-checked and rewritten to a canonical tag.' },
+  {
+    label: 'Creative',
+    value: 'creative',
+    description: 'Validator is lenient: invented tags are kept and listed below for you to approve.'
+  }
 ];
 
 const modeDescription = computed(() => {
@@ -147,7 +151,14 @@ async function run() {
     loraForReview.value = loraInput.value;
     reviewItems.value = (data.review || []).slice();
 
-    if (data.review && data.review.length) {
+    if (data.lowContent) {
+      toast({
+        variant: 'warning',
+        title: 'Almost nothing survived validation',
+        description:
+          'The description produced no solid tags, so nothing was added to the prompt. Approve or remove the flagged tags in Tag Review.'
+      });
+    } else if (data.review && data.review.length) {
       toast({
         variant: 'warning',
         title: `${data.review.length} tag${data.review.length === 1 ? '' : 's'} need a decision`,
@@ -185,8 +196,20 @@ async function applyReviewEdit(original, replacement) {
   });
 }
 
-function keepOriginal(original) {
+async function keepOriginal(original) {
+  const added = !promptTags.value.includes(original);
+  if (added) promptTags.value.push(original);
   reviewItems.value = reviewItems.value.filter((i) => i.original !== original);
+
+  if (added) {
+    try {
+      const data = await api.format(promptTags.value, loraForReview.value);
+      finalText.value = data.finalText || '';
+    } catch (err) {
+      emit('error', err.message || 'Failed to re-format.');
+    }
+  }
+
   toast({ variant: 'success', title: 'Tag kept', description: `${original} stays in the output as-is.` });
 }
 

@@ -6,6 +6,7 @@ const {
   EXTRA_NEGATIVE,
   POSITIVE_FILLER,
   STYLE_BOOSTERS,
+  RETRIEVAL,
   SANITY
 } = require('../../../config/constants');
 
@@ -32,13 +33,43 @@ function appendAmbiguousLog(logPath, entry) {
   }
 }
 
+// WORKAROUND: LLMs pad weak or empty requests by repeating a stem with numeric suffixes
+// ("please_ignore_1" ... "please_ignore_20"). Real numbered tags ("figure_17") resolve in the DB,
+// so only collapse runs of numbered variants where neither the base nor any variant is a known tag.
+function collapseNumberedDuplicates(rawTags, isKnown) {
+  const groups = new Map();
+  for (const tag of rawTags) {
+    const match = /^(.+)_(\d{1,3})$/.exec(tag);
+    if (!match || isKnown(tag)) continue;
+    const base = match[1];
+    if (!groups.has(base)) groups.set(base, []);
+    groups.get(base).push(tag);
+  }
+  const drop = new Set();
+  for (const [base, variants] of groups) {
+    if (variants.length >= 3 && !isKnown(base) && variants.every((tag) => !isKnown(tag))) {
+      variants.slice(1).forEach((tag) => drop.add(tag));
+    }
+  }
+  return rawTags.filter((tag) => !drop.has(tag));
+}
+
+function buildKnownCheck(deps) {
+  const repo = deps.repository;
+  if (!repo || typeof repo.getTagSet !== 'function') return () => false;
+  const tagSet = repo.getTagSet();
+  const aliasMap = typeof repo.getAliasMap === 'function' ? repo.getAliasMap() : new Map();
+  return (tag) => tagSet.has(tag) || aliasMap.has(tag);
+}
+
 function resolveAll(rawTags, naturalLanguage, deps, mode = 'strict') {
   const records = [];
   const resolver = deps.retrieval.resolve;
   const decompose = deps.retrieval.decompose || (() => null);
   const logPath = deps.logPath || AMBIGUOUS_LOG_PATH;
   const creative = mode === 'creative';
-  for (const original of rawTags) {
+  const collapsed = collapseNumberedDuplicates(rawTags, buildKnownCheck(deps));
+  for (const original of collapsed) {
     if (KNOWN_PROMPT_TAGS.has(original)) {
       records.push({ original, tag: original, status: 'kept', action: 'kept' });
       continue;
@@ -145,6 +176,10 @@ function resolveAll(rawTags, naturalLanguage, deps, mode = 'strict') {
           candidates: r.candidates,
           decomposed: dec ? dec.parts : []
         });
+        // WORKAROUND: candidates below logFloor are noise (LLM padding scores ~0.42 against junk);
+        // an ambiguous entry whose best candidate can't clear the bar adds no signal, so skip the log.
+        const topCandidate = r.candidates[0];
+        if (!topCandidate || topCandidate.score < RETRIEVAL.logFloor) continue;
         const entry = {
           ts: new Date().toISOString(),
           request: naturalLanguage,
@@ -194,6 +229,7 @@ function resolveAll(rawTags, naturalLanguage, deps, mode = 'strict') {
 module.exports = {
   resolveAll,
   appendAmbiguousLog,
+  collapseNumberedDuplicates,
   KNOWN_PROMPT_TAGS,
   AMBIGUOUS_LOG_PATH
 };

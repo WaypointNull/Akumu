@@ -1,29 +1,14 @@
-function buildPass1System(mode = 'strict') {
-  if (mode === 'creative') {
-    return [
-      'Translate natural language image descriptions into Danbooru-style prompt tags.',
-      'Prefer exact, widely-used canonical Danbooru tags when one fits.',
-      'If no existing tag captures the full meaning, you may compose descriptive compound tags (e.g. "red_flannel_jacket", "forest_with_torch").',
-      'You may add qualitative modifiers — colors, materials, lighting, mood — either as their own tags or inside compounds.',
-      'Be thorough and permissive: capture every subject, detail, and qualifier you can identify.',
-      'Examples:',
-      '"dark-skinned girl" -> 1girl, dark_skin, dark-skinned_female',
-      '"red flannel jacket" -> red_flannel_jacket',
-      '"headset around neck" -> headphones_around_neck',
-      'Output only comma-separated lowercase tags with underscores.',
-      'No prose, explanations, headings, or formatting.'
-    ].join(' ');
-  }
+function buildPass1System() {
   return [
-    'Translate natural language image descriptions into existing Danbooru tags.',
+    'Translate natural language image descriptions into a dense list of existing Danbooru tags.',
+    'Break the description into its smallest meaningful details and give every detail its own tag. Split single items into multiple tags: a "red flannel jacket" becomes red_jacket, flannel, jacket, and red.',
     'Prefer exact, widely-used canonical Danbooru tags.',
-    'If no single canonical tag comes to mind, express the idea using multiple existing tags.',
+    'If no single canonical tag fits, express the idea using multiple existing tags.',
     'Do not invent new compound tags or descriptive phrases.',
-    'Prefer simpler, broader tags over highly specific invented ones.',
     'Examples:',
-    '"dark-skinned girl" -> 1girl, dark_skin',
-    '"headset around neck" -> headphones_around_neck',
-    '"black jean shorts" -> black_shorts, denim',
+    '"dark-skinned girl" -> 1girl, dark_skin, solo',
+    '"a girl with red hair and green eyes, wearing a hat and a sweater, sitting on a bench in a park" -> 1girl, red_hair, green_eyes, hat, sweater, sitting, bench, park, outdoors, solo',
+    '"a knight in a red flannel jacket, standing at the edge of a dark forest at dusk, torch in hand" -> 1boy, knight, red_jacket, flannel, jacket, red, standing, full_body, holding, torch, flame, dark_forest, dusk, night, outdoors, trees',
     'Output only comma-separated lowercase tags with underscores.',
     'No prose, explanations, headings, or formatting.'
   ].join(' ');
@@ -39,23 +24,15 @@ function buildLoraContext(loraInput) {
   return ['LoRA tags (context — do NOT output these, they are inserted separately):', tags.join(', '), ''].join('\n');
 }
 
-function buildPass1Prompt(naturalLanguage, mode = 'strict', loraInput = '') {
+function buildPass1Prompt(naturalLanguage, loraInput = '') {
   const loraContext = buildLoraContext(loraInput);
-  if (mode === 'creative') {
-    return [
-      loraContext,
-      `Request: ${naturalLanguage}`,
-      'Return approximately 60-120 comma-separated tags.',
-      'Be generous: list every character, object, action, expression, article of clothing, color, pose, camera angle, setting, and lighting detail you can identify.',
-      'Do not pad with irrelevant tags to reach the count, but do not omit real details either.'
-    ].join('\n');
-  }
   return [
     loraContext,
     `Request: ${naturalLanguage}`,
-    'Return approximately 60-120 comma-separated tags.',
-    'Be generous: list every character, object, action, expression, article of clothing, color, pose, camera angle, setting, and lighting detail you can identify.',
-    'Do not invent tags to reach a target count, but do not omit real details either.'
+    'Return at least 20 comma-separated tags (up to 40).',
+    'Decompose the description into individual details and give every detail its own tag — never summarize a detail into one broad tag.',
+    'Include the character count, pose, framing, setting, lighting, and the color and material of each garment.',
+    'Do not invent tags to reach the count.'
   ].join('\n');
 }
 
