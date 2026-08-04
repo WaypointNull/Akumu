@@ -1,4 +1,9 @@
 node_modules/
 data/
 client/dist/
+release/
+build/
+desktop/assets/
+README.md
+LICENSE.md
 package-lock.json

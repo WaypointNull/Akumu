@@ -1,6 +1,6 @@
 const path = require('path');
 
-const PORT = 5177;
+const PORT = Number(process.env.AKUMU_PORT) || 5177;
 const OLLAMA_BASE_URL = 'http://127.0.0.1:11434';
 const OLLAMA_URL = `${OLLAMA_BASE_URL}/api/generate`;
 
@@ -51,7 +51,10 @@ const NSFW_CONTENT_EXACT_TOKENS = new Set(['balls', 'sex']);
 
 const TAG_LIST_URL =
   'https://raw.githubusercontent.com/DraconicDragon/dbr-e621-lists-archive/refs/heads/main/tag-lists/danbooru_e621_merged/danbooru_e621_merged_2026-04-01_pt20-ia-dd-ed-spc.csv';
-const TAG_FILE_PATH = path.join(__dirname, '..', '..', '..', 'data', 'danbooru-tags.txt');
+// Desktop builds run from a read-only install dir, so the data folder can be redirected via env.
+const TAG_FILE_PATH = process.env.AKUMU_DATA_DIR
+  ? path.join(process.env.AKUMU_DATA_DIR, 'danbooru-tags.txt')
+  : path.join(__dirname, '..', '..', '..', 'data', 'danbooru-tags.txt');
 
 const REQUIRED_POSITIVE = ['masterpiece', 'best_quality', 'amazing_quality', 'absurdres'];
 const REQUIRED_NEGATIVE = [

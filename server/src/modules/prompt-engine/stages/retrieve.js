@@ -8,7 +8,10 @@ const {
   STYLE_BOOSTERS
 } = require('../../../config/constants');
 
-const AMBIGUOUS_LOG_PATH = path.join(__dirname, '..', '..', '..', '..', '..', 'data', 'ambiguous-log.ndjson');
+// Desktop builds run from a read-only install dir, so the log folder can be redirected via env.
+const AMBIGUOUS_LOG_PATH = process.env.AKUMU_DATA_DIR
+  ? path.join(process.env.AKUMU_DATA_DIR, 'ambiguous-log.ndjson')
+  : path.join(__dirname, '..', '..', '..', '..', '..', 'data', 'ambiguous-log.ndjson');
 
 // WORKAROUND: baseline boilerplate tags must never be rewritten by retrieval, so short-circuit them to "kept" up front.
 const KNOWN_PROMPT_TAGS = new Set([

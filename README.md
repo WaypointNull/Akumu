@@ -18,6 +18,12 @@
 <img alt="Runtime" src="https://img.shields.io/badge/runtime-Ollama%20%2B%20Express%20%2B%20Vue%203-4f5bd5?style=for-the-badge" />
 <img alt="License" src="https://img.shields.io/badge/license-WaypointNull%20v1.0-2e7d5b?style=for-the-badge" />
 
+<br>
+
+<a href="https://buymeacoffee.com/waypointnull">
+<img alt="Buy me a coffee" src="https://img.shields.io/badge/Buy_Me_A_Coffee-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black" />
+</a>
+
 </div>
 
 ---
@@ -180,6 +186,39 @@ For example:
 ```powershell
 ollama pull qwen2.5:7b
 ```
+
+---
+
+<div align="center">
+
+## Install it
+
+*No CMD required. I checked.*
+
+</div>
+
+Head to the [Releases](https://github.com/WaypointNull/Akumu/releases) tab.
+
+Download the latest setup, double-click it, done.
+
+* `Akumu-Setup-x.x.x.exe` — one-click installer. Gives you a proper app with a desktop shortcut. This is the one normal people want.
+* `Akumu-Portable-x.x.x.exe` — no install. Download, run, delete when you're done. Great for USB sticks and suspicious machines.
+
+Either way it lives in your taskbar, opens and closes like a real app, and keeps running quietly in the tray.
+
+You still need **Ollama** running with a model pulled:
+
+```powershell
+ollama pull qwen2.5:7b
+```
+
+That's the whole setup.
+
+...
+
+Maybe I should make a one-click pull button?
+
+Nah. Skill issue.
 
 ---
 

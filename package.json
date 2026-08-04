@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "description": "Turn natural language into booru-style prompt tags with Ollama.",
-  "main": "server/server.js",
+  "author": "WaypointNull",
+  "main": "desktop/src/main.js",
   "engines": {
     "node": ">=18"
   },
@@ -18,7 +19,11 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "bench": "node scripts/benchmark.js",
-    "bench:format": "node scripts/benchmark.js format"
+    "bench:format": "node scripts/benchmark.js format",
+    "desktop:icon": "node desktop/scripts/make-icon.js",
+    "desktop:dist": "npm run build && npm run desktop:icon && electron-builder --win",
+    "desktop:portable": "npm run build && npm run desktop:icon && electron-builder --win portable",
+    "desktop:publish": "npm run build && npm run desktop:icon && electron-builder --win --publish always"
   },
   "dependencies": {
     "@lucide/vue": "^1.28.0",
@@ -33,15 +38,72 @@
     "@tailwindcss/vite": "^4.3.3",
     "@vitejs/plugin-vue": "^6.0.8",
     "autoprefixer": "^10.5.4",
+    "electron": "^43.2.0",
+    "electron-builder": "^26.15.3",
     "eslint": "^10.8.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-vue": "^10.10.0",
     "globals": "^17.9.0",
+    "pngjs": "^7.0.0",
     "postcss": "^8.5.25",
     "prettier": "^3.9.6",
     "tailwindcss": "^4.3.3",
     "vite": "^8.2.0",
     "vue": "^3.5.40",
     "vue-eslint-parser": "^10.4.1"
+  },
+  "build": {
+    "appId": "com.akumu.desktop",
+    "productName": "Akumu",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "desktop/src/**/*",
+      "desktop/assets/**/*",
+      "server/**/*",
+      "client/dist/**/*",
+      "data/danbooru-tags.txt",
+      "!**/*.test.js",
+      "!**/test/**",
+      "!scripts/**"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Akumu",
+      "artifactName": "Akumu-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "Akumu-Portable-${version}.${ext}",
+      "requestExecutionLevel": "user"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "WaypointNull",
+        "repo": "Akumu"
+      }
+    ]
   }
 }

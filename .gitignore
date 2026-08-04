@@ -1,5 +1,8 @@
 node_modules/
 client/dist/
+release/
+build/icon.png
+desktop/assets/tray.ico
 
 # Ignore all files inside data/ except danbooru-tags.txt
 data/*

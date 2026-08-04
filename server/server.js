@@ -2,13 +2,17 @@ const { PORT } = require('./src/config/constants');
 const { createApp } = require('./src/app');
 const { createContainer } = require('./src/container');
 
-async function start() {
+async function start(options = {}) {
   const deps = createContainer();
   const summary = await deps.repository.ensureTagList();
   const indexSummary = deps.retrieval.buildIndex();
 
   const app = createApp(deps);
-  app.listen(PORT, () => {
+  const { host } = options;
+
+  return new Promise((resolve, reject) => {
+    const server = host ? app.listen(PORT, host, () => resolve(server)) : app.listen(PORT, () => resolve(server));
+    server.on('error', reject);
     console.log(`Akumu running at http://127.0.0.1:${PORT}`);
     console.log(`Loaded ${summary.tags} tags, ${summary.aliases} aliases, ${summary.collisions} collisions.`);
     console.log(
@@ -17,7 +21,11 @@ async function start() {
   });
 }
 
-start().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+if (require.main === module) {
+  start().catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
+}
+
+module.exports = { start };

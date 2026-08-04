@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue';
 import { Moon, Sun, Heart, TriangleAlert, Sparkles, CircleAlert, FileText } from '@lucide/vue';
 import { api } from './api.js';
 import SinglePromptPanel from './components/SinglePromptPanel.vue';
+import BuyMeACoffeeIcon from './components/BuyMeACoffeeIcon.vue';
 import Button from './components/ui/Button.vue';
 import Card from './components/ui/Card.vue';
 import CardHeader from './components/ui/CardHeader.vue';
@@ -15,6 +16,12 @@ import { useToast } from './lib/toast.js';
 const { toast } = useToast();
 const defaults = ref({});
 const isDark = ref(true);
+
+const BUY_ME_A_COFFEE_URL = 'https://buymeacoffee.com/waypointnull';
+
+function openBuyMeACoffee() {
+  window.open(BUY_ME_A_COFFEE_URL, '_blank', 'noopener,noreferrer');
+}
 
 onMounted(async () => {
   try {
@@ -116,7 +123,7 @@ function toggleTheme() {
           </CardTitle>
           <CardDescription>Akumu is honest about its weaknesses.</CardDescription>
         </CardHeader>
-        <CardContent class="grid gap-3 sm:grid-cols-2">
+        <CardContent class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <div class="space-y-1 rounded-md border bg-muted/40 p-4">
             <p class="text-sm font-semibold">Characters</p>
             <p class="text-sm leading-relaxed text-muted-foreground">
@@ -129,19 +136,34 @@ function toggleTheme() {
               Scenes and lighting are a hard task. Use the tag disambiguation or manually insert your tags later.
             </p>
           </div>
+          <div class="space-y-1 rounded-md border bg-muted/40 p-4">
+            <p class="text-sm font-semibold">Model coverage</p>
+            <p class="text-sm leading-relaxed text-muted-foreground">
+              This was only tested on Qwen 2.5. I cannot attest personally for any other models. Good luck
+            </p>
+          </div>
         </CardContent>
       </Card>
     </main>
 
     <footer class="border-t">
-      <div
-        class="mx-auto flex w-full max-w-6xl flex-col items-center justify-between gap-2 px-4 py-6 text-xs text-muted-foreground sm:flex-row sm:px-6"
-      >
-        <p>Akumu · runs 100% locally via Ollama</p>
-        <p class="flex items-center gap-1.5">
-          <Heart class="h-3 w-3 fill-primary text-primary" />
-          Made from my deepest nightmares
-        </p>
+      <div class="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
+        <div class="grid grid-cols-1 gap-6 sm:grid-cols-3 sm:items-start">
+          <p class="text-xs text-muted-foreground">Akumu · runs 100% locally via Ollama</p>
+          <div class="flex flex-col items-center gap-2">
+            <p class="text-xs text-muted-foreground">Tired of having money?</p>
+            <Button variant="outline" size="sm" class="gap-2" @click="openBuyMeACoffee">
+              <BuyMeACoffeeIcon class="h-4 w-4 text-amber-400" />
+              I'll gladly take it!
+            </Button>
+          </div>
+          <div class="flex justify-center sm:justify-end">
+            <p class="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Heart class="h-3 w-3 fill-primary text-primary" />
+              Made from my deepest nightmares
+            </p>
+          </div>
+        </div>
       </div>
     </footer>
 
