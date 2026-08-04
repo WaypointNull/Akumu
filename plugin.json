@@ -8,10 +8,7 @@
     "cwd": "."
   },
   "build": {
-    "steps": [
-      { "command": ["npm", "install"] },
-      { "command": ["npm", "run", "build"] }
-    ]
+    "steps": [{ "command": ["npm", "install"] }, { "command": ["npm", "run", "build"] }]
   },
   "health": {
     "path": "/api/health"

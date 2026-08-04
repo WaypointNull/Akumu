@@ -164,6 +164,14 @@
 }
 
 @layer components {
+  .logo-duotone {
+    filter: sepia(1) hue-rotate(315deg) saturate(3.5) brightness(0.55);
+  }
+
+  .dark .logo-duotone {
+    filter: sepia(1) hue-rotate(300deg) saturate(4.5) brightness(1.15);
+  }
+
   .code-block {
     font-family: var(--font-mono);
     font-size: 0.8125rem;
