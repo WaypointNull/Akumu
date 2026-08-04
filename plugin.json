@@ -1,11 +1,17 @@
 {
   "id": "akumu",
   "name": "Akumu",
-  "version": "1.1.0",
+  "version": "1.2.2",
   "sdkVersion": 1,
   "entry": {
     "command": ["node", "server/server.js"],
     "cwd": "."
+  },
+  "build": {
+    "steps": [
+      { "command": ["npm", "install"] },
+      { "command": ["npm", "run", "build"] }
+    ]
   },
   "health": {
     "path": "/api/health"
