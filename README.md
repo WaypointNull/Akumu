@@ -30,9 +30,22 @@
 
 <div align="center">
 
-### The whole thing, in one screenshot:
+## What it looks like
 
-![Akumu screenshot](client/public/screenshot.png)
+</div>
+
+<div align="center">
+
+<img src="client/public/screenshot-before.png" alt="Akumu before a prompt" width="720"/>
+
+*Empty state. Judging you for not having typed anything yet.*
+
+<br>
+<br>
+
+<img src="client/public/screenshot-after.png" alt="Akumu after a prompt" width="720"/>
+
+*After a prompt. The tag review is on the right, being suspicious of the LLM's choices.*
 
 </div>
 
