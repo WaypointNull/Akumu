@@ -1,13 +1,29 @@
 <script setup>
 import { ref, watch, computed, onMounted } from 'vue';
+import { Loader2, Sparkles, Copy, Check, RefreshCw, ListChecks, Bot, ShieldCheck, FileText } from '@lucide/vue';
 import { api } from '../api.js';
 import TagReviewList from './TagReviewList.vue';
+import Button from './ui/Button.vue';
+import Card from './ui/Card.vue';
+import CardHeader from './ui/CardHeader.vue';
+import CardTitle from './ui/CardTitle.vue';
+import CardDescription from './ui/CardDescription.vue';
+import CardContent from './ui/CardContent.vue';
+import Label from './ui/Label.vue';
+import Textarea from './ui/Textarea.vue';
+import Select from './ui/Select.vue';
+import Tabs from './ui/Tabs.vue';
+import TabsList from './ui/TabsList.vue';
+import TabsTrigger from './ui/TabsTrigger.vue';
+import TabsContent from './ui/TabsContent.vue';
+import { useToast } from '@/lib/toast.js';
 
 const props = defineProps({
   defaults: { type: Object, default: () => ({}) }
 });
 
 const emit = defineEmits(['error']);
+const { toast } = useToast();
 
 const modelTranslate = ref('');
 const models = ref([]);
@@ -15,6 +31,7 @@ const ollamaState = ref('checking');
 const naturalLanguage = ref('');
 const loraInput = ref('');
 const running = ref(false);
+const copied = ref(false);
 const pass1 = ref('');
 const pass2 = ref('');
 const pass3 = ref('');
@@ -39,6 +56,30 @@ const ollamaLabel = computed(() => {
     : 'Ollama online · no models';
 });
 
+const pipelineSteps = computed(() => [
+  {
+    key: 'pass1',
+    title: 'Pass 1 · Translate',
+    detail: 'The LLM turns English into tag soup.',
+    icon: Bot,
+    text: pass1.value
+  },
+  {
+    key: 'pass2',
+    title: 'Pass 2 · Validate',
+    detail: 'Akumu stops trusting the LLM and fact-checks every tag.',
+    icon: ShieldCheck,
+    text: pass2.value
+  },
+  {
+    key: 'pass3',
+    title: 'Pass 3 · Format',
+    detail: 'Deterministic boilerplate → GLOBAL_POSITIVE / GLOBAL_NEGATIVE.',
+    icon: FileText,
+    text: pass3.value
+  }
+]);
+
 watch(
   () => props.defaults,
   (d) => {
@@ -62,13 +103,17 @@ async function loadModels() {
 onMounted(loadModels);
 
 async function run() {
-  emit('error', '');
   if (!naturalLanguage.value.trim()) {
-    emit('error', 'Natural language input is required.');
+    toast({
+      variant: 'warning',
+      title: 'Nothing to translate',
+      description: 'Believe it or not, you need to actually describe something first.'
+    });
     return;
   }
 
   running.value = true;
+  copied.value = false;
   pass1.value = '';
   pass2.value = '';
   pass3.value = '';
@@ -89,6 +134,14 @@ async function run() {
     promptTags.value = (data.final.promptTags || []).slice();
     loraForReview.value = loraInput.value;
     reviewItems.value = (data.review || []).slice();
+
+    if (data.review && data.review.length) {
+      toast({
+        variant: 'warning',
+        title: `${data.review.length} tag${data.review.length === 1 ? '' : 's'} need a decision`,
+        description: "Akumu wasn't sure about these. Check the Tag Review section below."
+      });
+    }
   } catch (err) {
     emit('error', err.message || 'Unexpected error');
   } finally {
@@ -110,106 +163,190 @@ async function applyReviewEdit(original, replacement) {
   }
 
   reviewItems.value = reviewItems.value.filter((i) => i.original !== original);
+
+  toast({
+    variant: 'success',
+    title: replacement.length ? 'Tag replaced' : 'Tag removed',
+    description: replacement.length
+      ? `${original} → ${replacement.join(', ')}`
+      : `${original} was removed from the output.`
+  });
 }
 
 function keepOriginal(original) {
   reviewItems.value = reviewItems.value.filter((i) => i.original !== original);
+  toast({ variant: 'success', title: 'Tag kept', description: `${original} stays in the output as-is.` });
 }
 
 async function copy() {
   const text = finalText.value || '';
   if (!text.trim()) {
-    emit('error', 'No final output to copy yet.');
+    toast({ variant: 'warning', title: 'Nothing to copy', description: 'Generate a prompt first.' });
     return;
   }
-  await navigator.clipboard.writeText(text);
+  try {
+    await navigator.clipboard.writeText(text);
+    copied.value = true;
+    setTimeout(() => {
+      copied.value = false;
+    }, 1600);
+    toast({ variant: 'success', title: 'Copied to clipboard' });
+  } catch {
+    toast({ variant: 'destructive', title: 'Copy failed', description: 'Your browser blocked clipboard access.' });
+  }
 }
 </script>
 
 <template>
-  <section class="panel">
-    <section class="card">
-      <div class="model-grid">
-        <div class="field">
-          <label for="modelTranslate">Model (Translate)</label>
-          <select id="modelTranslate" v-model="modelTranslate">
-            <option v-if="!modelOptions.length" value="">No models available</option>
-            <option v-for="m in modelOptions" :key="m" :value="m">{{ m }}</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="ollamaStatus">Ollama</label>
-          <div id="ollamaStatus" class="status-pill" :class="ollamaState">
-            <span class="status-dot"></span>
-            <span>{{ ollamaLabel }}</span>
+  <div class="grid gap-6 lg:grid-cols-5">
+    <div class="space-y-6 lg:col-span-3">
+      <Card>
+        <CardHeader>
+          <CardTitle>Model</CardTitle>
+          <CardDescription>The only pass that touches a model</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div class="grid items-end gap-4 sm:grid-cols-[1fr_auto]">
+            <div class="space-y-2">
+              <Label for="modelTranslate">Translate model</Label>
+              <Select
+                id="modelTranslate"
+                v-model="modelTranslate"
+                :options="modelOptions"
+                :disabled="modelOptions.length === 0"
+                placeholder="No models available"
+              />
+            </div>
+            <div class="flex items-center gap-2">
+              <div
+                class="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground"
+                :class="{ 'text-foreground': ollamaState !== 'offline' }"
+              >
+                <span class="status-dot" :class="ollamaState"></span>
+                <span class="whitespace-nowrap">{{ ollamaLabel }}</span>
+              </div>
+              <Button
+                variant="outline"
+                size="icon"
+                :disabled="ollamaState === 'checking'"
+                aria-label="Refresh models"
+                title="Refresh models"
+                @click="loadModels"
+              >
+                <RefreshCw :class="{ 'animate-spin': ollamaState === 'checking' }" />
+              </Button>
+            </div>
           </div>
-        </div>
-        <div class="field">
-          <label>&nbsp;</label>
-          <button type="button" class="outlined" :disabled="ollamaState === 'checking'" @click="loadModels">
-            Refresh Models
-          </button>
-        </div>
-      </div>
-    </section>
+        </CardContent>
+      </Card>
 
-    <section class="card">
-      <div class="field">
-        <label for="naturalLanguage">Natural Language Input</label>
-        <textarea
-          id="naturalLanguage"
-          v-model="naturalLanguage"
-          placeholder="Example: Anime image featuring Neeko from League of Legends, from above, sitting on a rock in a jungle, innocent confused expression, leaning back, looking at viewer."
-        ></textarea>
-      </div>
-      <div class="field">
-        <label for="loraInput">LoRA Triggers (optional, verbatim into LoRA Triggers section)</label>
-        <textarea
-          id="loraInput"
-          v-model="loraInput"
-          placeholder="(Palworld_Sekhmet, short hair, bob cut, blue hair, red eyes, cat ears, cat tail, cat girl, furry female, choker, hair ornament, dress, navel cutout, detached sleeves, blue_pantyhose, paws, claws)"
-        ></textarea>
-      </div>
-      <div class="row">
-        <button type="button" class="filled" :disabled="running" @click="run">
-          {{ running ? 'Running...' : 'Run 3-Pass Workflow' }}
-        </button>
-        <button type="button" class="outlined" @click="copy">Copy Final Output</button>
-      </div>
-    </section>
+      <Card>
+        <CardHeader>
+          <CardTitle>Describe the image</CardTitle>
+          <CardDescription>Like a normal human being — the LLM deals with the tag soup</CardDescription>
+        </CardHeader>
+        <CardContent class="space-y-4">
+          <div class="space-y-2">
+            <Label for="naturalLanguage">Image description</Label>
+            <Textarea
+              id="naturalLanguage"
+              v-model="naturalLanguage"
+              :rows="6"
+              placeholder="Describe the image in plain English. Example: a knight standing at the edge of a dark forest at dusk, torch in hand, looking into the trees."
+            />
+          </div>
+          <div class="space-y-2">
+            <Label for="loraInput">
+              LoRA triggers
+              <span class="text-muted-foreground font-normal">(optional — inserted verbatim)</span>
+            </Label>
+            <Textarea
+              id="loraInput"
+              v-model="loraInput"
+              :rows="3"
+              placeholder="Paste LoRA trigger lines here. Example: (my_character, short hair, red eyes, hat)."
+            />
+          </div>
+          <Button class="w-full sm:w-auto" size="lg" :disabled="running" @click="run">
+            <Loader2 v-if="running" class="animate-spin" />
+            <Sparkles v-else />
+            {{ running ? 'Working...' : 'Generate tags' }}
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
 
-    <section class="card outputs">
-      <div>
-        <label>Pass 1 - Translate</label>
-        <pre>{{ pass1 }}</pre>
-      </div>
-      <div>
-        <label>Pass 2 - Validate</label>
-        <pre>{{ pass2 }}</pre>
-      </div>
-    </section>
+    <div class="space-y-6 lg:col-span-2 lg:flex lg:flex-col">
+      <Card class="lg:flex lg:flex-1 lg:flex-col lg:min-h-0">
+        <CardHeader class="flex-row items-center justify-between space-y-0">
+          <div>
+            <CardTitle class="text-lg">Output</CardTitle>
+            <CardDescription>GLOBAL_POSITIVE / GLOBAL_NEGATIVE</CardDescription>
+          </div>
+          <Button variant="outline" size="sm" :disabled="!finalText" @click="copy">
+            <Check v-if="copied" class="text-primary" />
+            <Copy v-else />
+            {{ copied ? 'Copied' : 'Copy' }}
+          </Button>
+        </CardHeader>
+        <CardContent class="lg:flex lg:flex-1 lg:flex-col lg:min-h-0">
+          <Tabs defaultValue="final" class="lg:flex lg:flex-1 lg:flex-col lg:min-h-0">
+            <TabsList class="grid w-full grid-cols-2">
+              <TabsTrigger value="final">Final</TabsTrigger>
+              <TabsTrigger value="pipeline">Pipeline</TabsTrigger>
+            </TabsList>
 
-    <section class="card">
-      <label>Pass 3 - Boilerplate Format (deterministic, no LLM)</label>
-      <pre class="preserve">{{ pass3 }}</pre>
-    </section>
+            <TabsContent value="final" class="lg:flex lg:flex-1 lg:flex-col lg:min-h-0">
+              <pre v-if="finalText" class="code-block overflow-auto lg:flex-1 lg:min-h-0">{{ finalText }}</pre>
+              <div
+                v-else
+                class="flex flex-col items-center justify-center gap-2 rounded-md border border-dashed bg-muted/30 px-4 py-10 text-center lg:flex-1"
+              >
+                <Sparkles class="h-5 w-5 text-muted-foreground" />
+                <p class="text-sm font-medium">No output yet</p>
+                <p class="text-xs text-muted-foreground">Describe something and hit generate.</p>
+              </div>
+            </TabsContent>
 
-    <section v-if="reviewItems.length" class="card">
-      <label>Tag Review</label>
-      <p class="muted">
-        These tags couldn't be confidently resolved. Keep the original, pick a candidate, or remove it.
-      </p>
+            <TabsContent value="pipeline" class="space-y-4 lg:min-h-0 lg:flex-1 overflow-y-auto">
+              <div v-for="step in pipelineSteps" :key="step.key" class="space-y-1.5">
+                <div class="flex items-center gap-2">
+                  <component :is="step.icon" class="h-4 w-4 text-primary" />
+                  <p class="text-sm font-medium">{{ step.title }}</p>
+                </div>
+                <p class="text-xs text-muted-foreground">{{ step.detail }}</p>
+                <pre v-if="step.text" class="code-block max-h-36 overflow-auto">{{ step.text }}</pre>
+                <div
+                  v-else
+                  class="rounded-md border border-dashed bg-muted/30 px-3 py-4 text-center text-xs text-muted-foreground"
+                >
+                  Not run yet
+                </div>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
+    </div>
+  </div>
+
+  <Card v-if="reviewItems.length" class="mt-6">
+    <CardHeader>
+      <CardTitle class="flex items-center gap-2 text-lg">
+        <ListChecks class="h-5 w-5 text-primary" />
+        Tag Review
+      </CardTitle>
+      <CardDescription>
+        Anything sketchy ends up here. Keep it, pick a candidate, or remove it — you decide.
+      </CardDescription>
+    </CardHeader>
+    <CardContent>
       <TagReviewList
         :items="reviewItems"
         @pick="applyReviewEdit"
         @keep="keepOriginal"
         @remove="applyReviewEdit($event, [])"
       />
-    </section>
-
-    <section class="card">
-      <label>Final Output</label>
-      <pre>{{ finalText }}</pre>
-    </section>
-  </section>
+    </CardContent>
+  </Card>
 </template>
