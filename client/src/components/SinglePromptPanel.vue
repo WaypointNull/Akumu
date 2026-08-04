@@ -32,6 +32,7 @@ const naturalLanguage = ref('');
 const loraInput = ref('');
 const running = ref(false);
 const copied = ref(false);
+const mode = ref('strict');
 const pass1 = ref('');
 const pass2 = ref('');
 const pass3 = ref('');
@@ -54,6 +55,16 @@ const ollamaLabel = computed(() => {
   return models.value.length
     ? `Ollama online · ${models.value.length} model${models.value.length === 1 ? '' : 's'}`
     : 'Ollama online · no models';
+});
+
+const modeOptions = [
+  { label: 'Strict', value: 'strict', description: 'Every tag is fact-checked against the tag list.' },
+  { label: 'Creative', value: 'creative', description: 'The AI may invent tags; you approve each one.' }
+];
+
+const modeDescription = computed(() => {
+  const found = modeOptions.find((o) => o.value === mode.value);
+  return found ? found.description : '';
 });
 
 const pipelineSteps = computed(() => [
@@ -125,7 +136,8 @@ async function run() {
     const data = await api.run({
       naturalLanguage: naturalLanguage.value,
       loraInput: loraInput.value,
-      modelTranslate: modelTranslate.value
+      modelTranslate: modelTranslate.value,
+      mode: mode.value
     });
     pass1.value = data.passes.translate || '';
     pass2.value = data.passes.validate || '';
@@ -267,11 +279,22 @@ async function copy() {
               placeholder="Paste LoRA trigger lines here. Example: (my_character, short hair, red eyes, hat)."
             />
           </div>
-          <Button class="w-full sm:w-auto" size="lg" :disabled="running" @click="run">
-            <Loader2 v-if="running" class="animate-spin" />
-            <Sparkles v-else />
-            {{ running ? 'Working...' : 'Generate tags' }}
-          </Button>
+          <div class="flex flex-col items-start gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <Button class="w-full sm:w-auto" size="lg" :disabled="running" @click="run">
+              <Loader2 v-if="running" class="animate-spin" />
+              <Sparkles v-else />
+              {{ running ? 'Working...' : 'Generate tags' }}
+            </Button>
+            <div class="grid w-full grid-cols-[1fr_6fr] items-center gap-x-2 gap-y-1.5 sm:w-72">
+              <Label for="generationMode">Mode:</Label>
+              <Select id="generationMode" v-model="mode" :options="modeOptions">
+                <template #value="{ value }">
+                  {{ (modeOptions.find((o) => o.value === value) || {}).label || value }}
+                </template>
+              </Select>
+              <p class="col-span-2 text-xs text-muted-foreground">{{ modeDescription }}</p>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>

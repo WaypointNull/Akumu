@@ -19,6 +19,20 @@ test('infer.translate parses raw tags and drops section labels', async () => {
   assert.deepEqual(result.tags, ['blue_hair', 'red_hair', 'sitting']);
 });
 
+test('infer.translate uses the creative prompt when mode is creative', async () => {
+  let seenSystem = '';
+  const deps = {
+    llm: {
+      ollamaGenerate: async (_model, system, _prompt) => {
+        seenSystem = system;
+        return 'blue_hair';
+      }
+    }
+  };
+  await infer.translate('a girl', { model: 'test-model', mode: 'creative' }, deps);
+  assert.match(seenSystem, /compose descriptive compound tags/);
+});
+
 test('infer.candidatesFromTagList filters, dedupes and caps at 120', () => {
   const rawTags = ['blue_hair', 'not_in_list', 'sitting'];
   const result = infer.candidatesFromTagList(rawTags, ALLOWED);
@@ -78,6 +92,36 @@ test('retrieve.resolveAll is safe when decomposition is unavailable', () => {
   assert.equal(records[0].status, 'kept');
 });
 
+test('retrieve.resolveAll in creative mode surfaces invented tags to review instead of rewriting them', () => {
+  const resolver = (tag) => {
+    if (tag === 'blue_hair') return { status: 'exact', tag };
+    if (tag === 'red_flannel_jacket')
+      return {
+        status: 'retrieved',
+        tag: 'flannel_jacket',
+        confidence: 0.8,
+        margin: 0.3,
+        candidates: [{ tag: 'flannel_jacket', score: 0.8 }]
+      };
+    return { status: 'unknown', tag, candidates: [] };
+  };
+  const decompose = (tag) => (tag === 'red_flannel_jacket' ? { full: true, parts: ['red', 'flannel_jacket'] } : null);
+  const deps = { retrieval: { resolve: resolver, decompose } };
+
+  const { records } = retrieve.resolveAll(['red_flannel_jacket'], 'request', deps, 'creative');
+  const record = records[0];
+  assert.equal(record.status, 'creative');
+  assert.equal(record.tag, 'red_flannel_jacket');
+  assert.deepEqual(record.decomposed, ['red', 'flannel_jacket']);
+});
+
+test('retrieve.resolveAll in creative mode keeps exact matches as kept', () => {
+  const resolver = (tag) => ({ status: 'exact', tag });
+  const deps = { retrieval: { resolve: resolver } };
+  const { records } = retrieve.resolveAll(['blue_hair'], 'request', deps, 'creative');
+  assert.equal(records[0].status, 'kept');
+});
+
 test('retrieve.resolveAll re-qualifies an alias to match a prompt franchise', () => {
   const repo = createTagListRepository();
   repo.loadFromRecords(
@@ -129,6 +173,26 @@ test('format.finalize returns promptTags and keeps ambiguous originals', () => {
   assert.ok(promptTags.includes('skinned'));
   assert.ok(promptTags.includes('confused_expression'));
   assert.ok(formatted.finalText.includes('confused_expression'));
+});
+
+test('format.finalize keeps creative-mode originals even when not in the tag set', () => {
+  const records = [
+    {
+      original: 'red_flannel_jacket',
+      tag: 'red_flannel_jacket',
+      status: 'creative',
+      candidates: [{ tag: 'flannel_jacket', score: 0.8 }]
+    },
+    { original: 'blue_hair', tag: 'blue_hair', status: 'kept' }
+  ];
+  const { promptTags, formatted } = format.finalize({
+    records,
+    candidates: [],
+    loraInput: '',
+    tagSet: ALLOWED
+  });
+  assert.ok(promptTags.includes('red_flannel_jacket'));
+  assert.ok(formatted.finalText.includes('red_flannel_jacket'));
 });
 
 test('format.finalize produces summary and capped prompt tags', () => {

@@ -3,8 +3,15 @@ const { dedupeKeepOrder } = require('../../../shared/list');
 const { splitTags, isSectionLabel, isUsableTag } = require('../../tag-resolution');
 const { FORMAT } = require('../../../config/constants');
 
-async function translate(naturalLanguage, { model }, deps) {
-  const raw = await deps.llm.ollamaGenerate(model, buildPass1System(), buildPass1Prompt(naturalLanguage), 0.15);
+const MODE_TEMPERATURE = { strict: 0.15, creative: 0.55 };
+
+async function translate(naturalLanguage, { model, mode = 'strict' }, deps) {
+  const raw = await deps.llm.ollamaGenerate(
+    model,
+    buildPass1System(mode),
+    buildPass1Prompt(naturalLanguage, mode),
+    MODE_TEMPERATURE[mode] ?? MODE_TEMPERATURE.strict
+  );
   // WORKAROUND: the LLM tends to emit section headers ("Positive:", "Quality:") instead of pure tags; strip them.
   const tags = splitTags(raw).filter((tag) => !isSectionLabel(tag));
   return { raw, tags };

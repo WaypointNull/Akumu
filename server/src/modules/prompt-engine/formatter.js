@@ -29,6 +29,7 @@ function formatResolutionSummary(records) {
   if (counts.retrieved) lines.push(`${counts.retrieved} auto-replaced (retrieval)`);
   if (counts.decomposed) lines.push(`${counts.decomposed} decomposed into known tags`);
   if (counts.qualified) lines.push(`${counts.qualified} re-qualified (matched prompt context)`);
+  if (counts.creative) lines.push(`${counts.creative} kept for review (creative mode)`);
   if (counts.ambiguous) lines.push(`${counts.ambiguous} ambiguous (kept original, logged)`);
   if (counts.unknown) lines.push(`${counts.unknown} unknown (kept original)`);
 

@@ -31,11 +31,12 @@ function appendAmbiguousLog(logPath, entry) {
   }
 }
 
-function resolveAll(rawTags, naturalLanguage, deps) {
+function resolveAll(rawTags, naturalLanguage, deps, mode = 'strict') {
   const records = [];
   const resolver = deps.retrieval.resolve;
   const decompose = deps.retrieval.decompose || (() => null);
   const logPath = deps.logPath || AMBIGUOUS_LOG_PATH;
+  const creative = mode === 'creative';
   for (const original of rawTags) {
     if (KNOWN_PROMPT_TAGS.has(original)) {
       records.push({ original, tag: original, status: 'kept', action: 'kept' });
@@ -54,15 +55,34 @@ function resolveAll(rawTags, naturalLanguage, deps) {
     } else if (r.status === 'alias') {
       records.push({ original, tag: r.tag, status: 'alias', action: 'alias' });
     } else if (r.status === 'retrieved') {
-      records.push({
-        original,
-        tag: r.tag,
-        status: 'retrieved',
-        action: 'auto_replaced',
-        confidence: r.confidence,
-        margin: r.margin,
-        candidates: r.candidates
-      });
+      if (creative) {
+        // WORKAROUND: in creative mode the AI may invent semantically-correct tags ("red_flannel_jacket")
+        // that aren't in the DB; never silently rewrite them — surface the originals to review instead.
+        let dec = null;
+        try {
+          dec = decompose(original);
+        } catch (error) {
+          console.warn(`[decompose] error for "${original}":`, error.message);
+        }
+        records.push({
+          original,
+          tag: original,
+          status: 'creative',
+          action: 'review',
+          candidates: r.candidates || [],
+          decomposed: dec ? dec.parts : []
+        });
+      } else {
+        records.push({
+          original,
+          tag: r.tag,
+          status: 'retrieved',
+          action: 'auto_replaced',
+          confidence: r.confidence,
+          margin: r.margin,
+          candidates: r.candidates
+        });
+      }
     } else {
       let dec = null;
       try {
@@ -71,14 +91,27 @@ function resolveAll(rawTags, naturalLanguage, deps) {
         console.warn(`[decompose] error for "${original}":`, error.message);
       }
       if (dec && dec.full) {
-        console.warn(`[decompose] "${original}" -> ${dec.parts.join(', ')}`);
-        records.push({
-          original,
-          tag: dec.parts[0],
-          extraTags: dec.parts.slice(1),
-          status: 'decomposed',
-          action: 'decomposed'
-        });
+        if (creative) {
+          // WORKAROUND: ditto — a fully-decomposable tag is still a legit AI invention; let the user
+          // keep the compound or swap to the known parts instead of forcing the swap.
+          records.push({
+            original,
+            tag: original,
+            status: 'creative',
+            action: 'review',
+            candidates: (r.candidates || []).length ? r.candidates : dec.parts.map((tag) => ({ tag, score: 1 })),
+            decomposed: dec.parts
+          });
+        } else {
+          console.warn(`[decompose] "${original}" -> ${dec.parts.join(', ')}`);
+          records.push({
+            original,
+            tag: dec.parts[0],
+            extraTags: dec.parts.slice(1),
+            status: 'decomposed',
+            action: 'decomposed'
+          });
+        }
       } else if (r.candidates && r.candidates.length) {
         records.push({
           original,

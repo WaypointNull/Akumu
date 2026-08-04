@@ -4,13 +4,18 @@ const retrieve = require('./stages/retrieve');
 const format = require('./stages/format');
 const { formatPass3Breakdown } = require('./formatter');
 
-async function runSinglePipeline({ naturalLanguage, loraInput = '', modelTranslate }, deps) {
+async function runSinglePipeline({ naturalLanguage, loraInput = '', modelTranslate, mode = 'strict' }, deps) {
+  const selectedMode = mode === 'creative' ? 'creative' : 'strict';
   const selectedModelTranslate = (modelTranslate || DEFAULTS.modelTranslate).trim();
   const tagSet = deps.repository.getTagSet();
 
-  const translated = await infer.translate(naturalLanguage, { model: selectedModelTranslate }, deps);
+  const translated = await infer.translate(
+    naturalLanguage,
+    { model: selectedModelTranslate, mode: selectedMode },
+    deps
+  );
   const candidates = infer.candidatesFromTagList(translated.tags, tagSet);
-  const resolution = retrieve.resolveAll(translated.tags, naturalLanguage, deps);
+  const resolution = retrieve.resolveAll(translated.tags, naturalLanguage, deps, selectedMode);
   const { summary, formatted, promptTags } = format.finalize({
     records: resolution.records,
     candidates,
@@ -19,7 +24,7 @@ async function runSinglePipeline({ naturalLanguage, loraInput = '', modelTransla
   });
 
   const review = resolution.records
-    .filter((r) => r.status === 'ambiguous' || r.status === 'unknown')
+    .filter((r) => r.status === 'ambiguous' || r.status === 'unknown' || r.status === 'creative')
     .map((r) => ({
       original: r.original,
       status: r.status,
@@ -32,6 +37,7 @@ async function runSinglePipeline({ naturalLanguage, loraInput = '', modelTransla
       modelTranslate: selectedModelTranslate,
       modelFormat: null
     },
+    mode: selectedMode,
     passes: {
       translate: translated.raw,
       validate: summary,

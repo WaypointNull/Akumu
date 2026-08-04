@@ -42,7 +42,8 @@ function createApiRoutes(deps) {
         {
           naturalLanguage,
           loraInput: (req.body.loraInput || '').trim(),
-          modelTranslate: (req.body.modelTranslate || DEFAULTS.modelTranslate).trim()
+          modelTranslate: (req.body.modelTranslate || DEFAULTS.modelTranslate).trim(),
+          mode: req.body.mode || 'strict'
         },
         deps
       );

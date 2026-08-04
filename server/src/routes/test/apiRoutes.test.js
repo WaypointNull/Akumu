@@ -115,6 +115,27 @@ test('POST /api/run returns the full pipeline result', async (t) => {
   assert.ok(Array.isArray(res.json.final.promptTags));
   assert.ok(Array.isArray(res.json.review));
   assert.ok(res.json.passes.translate);
+  assert.equal(res.json.mode, 'strict');
+});
+
+test('POST /api/run defaults to strict mode and echoes an invalid mode as strict', async (t) => {
+  const server = await startServer(fakeDeps());
+  t.after(() => server.close());
+  const strict = await request(server, {
+    method: 'POST',
+    path: '/api/run',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ naturalLanguage: 'a girl', mode: 'creative' })
+  });
+  assert.equal(strict.status, 200);
+  assert.equal(strict.json.mode, 'creative');
+  const bogus = await request(server, {
+    method: 'POST',
+    path: '/api/run',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ naturalLanguage: 'a girl', mode: 'banana' })
+  });
+  assert.equal(bogus.json.mode, 'strict');
 });
 
 test('POST /api/run maps upstream Ollama failures to 502', async (t) => {
