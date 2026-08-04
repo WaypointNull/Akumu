@@ -7,6 +7,40 @@ const { FORMAT } = require('../../../config/constants');
 // validator-side decision only, so the translate stage is deliberately mode-agnostic.
 const TRANSLATE_TEMPERATURE = 0.15;
 
+function loraTriggerPhrases(loraInput) {
+  return (loraInput || '')
+    .trim()
+    .split(/[\n,]+/)
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+function canonicalize(s) {
+  return s
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+// WORKAROUND: qwen echoes the LoRA trigger list (fed as context) back into the tag list. The formatter
+// already appends the trigger list verbatim, so an echoed descriptor tag is pure duplication — the strip
+// below drops it. A tag is an echo when it equals a trigger phrase, or contains a whole multi-word phrase.
+function isLoraEcho(tag, loraInput) {
+  const canonicalTag = canonicalize(tag);
+  return loraTriggerPhrases(loraInput).some((phrase) => {
+    const canonicalPhrase = canonicalize(phrase);
+    return (
+      canonicalPhrase.length > 0 &&
+      (canonicalTag === canonicalPhrase || (canonicalPhrase.includes(' ') && canonicalTag.includes(canonicalPhrase)))
+    );
+  });
+}
+
+function stripLoraEchoes(tags, loraInput) {
+  if (!loraInput || !loraInput.trim()) return tags;
+  return tags.filter((tag) => !isLoraEcho(tag, loraInput));
+}
+
 async function translate(naturalLanguage, { model, loraInput = '' }, deps) {
   const raw = await deps.llm.ollamaGenerate(
     model,
@@ -15,7 +49,10 @@ async function translate(naturalLanguage, { model, loraInput = '' }, deps) {
     TRANSLATE_TEMPERATURE
   );
   // WORKAROUND: the LLM tends to emit section headers ("Positive:", "Quality:") instead of pure tags; strip them.
-  const tags = splitTags(raw).filter((tag) => !isSectionLabel(tag));
+  const tags = stripLoraEchoes(
+    splitTags(raw).filter((tag) => !isSectionLabel(tag)),
+    loraInput
+  );
   return { raw, tags };
 }
 
@@ -33,5 +70,8 @@ function candidatesFromTagList(rawTags, allowedTags) {
 
 module.exports = {
   translate,
-  candidatesFromTagList
+  candidatesFromTagList,
+  loraTriggerPhrases,
+  isLoraEcho,
+  stripLoraEchoes
 };

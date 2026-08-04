@@ -7,7 +7,8 @@ const {
   POSITIVE_FILLER,
   STYLE_BOOSTERS,
   RETRIEVAL,
-  SANITY
+  SANITY,
+  DECOMPOSE_NOISE
 } = require('../../../config/constants');
 
 // Desktop builds run from a read-only install dir, so the log folder can be redirected via env.
@@ -145,7 +146,8 @@ function resolveAll(rawTags, naturalLanguage, deps, mode = 'strict') {
       } catch (error) {
         console.warn(`[decompose] error for "${original}":`, error.message);
       }
-      if (dec && dec.full) {
+      const usableDecomposition = dec && dec.full && !dec.parts.some((part) => DECOMPOSE_NOISE.has(part));
+      if (usableDecomposition) {
         if (creative) {
           // WORKAROUND: ditto — a fully-decomposable tag is still a legit AI invention; let the user
           // keep the compound or swap to the known parts instead of forcing the swap.
@@ -165,6 +167,28 @@ function resolveAll(rawTags, naturalLanguage, deps, mode = 'strict') {
             extraTags: dec.parts.slice(1),
             status: 'decomposed',
             action: 'decomposed'
+          });
+        }
+      } else if (dec && dec.full) {
+        // WORKAROUND: decomposition parts are too vague to stand alone, so don't auto-accept — surface
+        // the compound to review with its parts attached.
+        console.warn(`[decompose] "${original}" -> ${dec.parts.join(', ')} (noise parts, sent to review)`);
+        if (r.candidates && r.candidates.length) {
+          records.push({
+            original,
+            tag: original,
+            status: 'ambiguous',
+            action: 'ambiguous',
+            candidates: r.candidates,
+            decomposed: dec.parts
+          });
+        } else {
+          records.push({
+            original,
+            tag: original,
+            status: 'unknown',
+            action: 'kept',
+            decomposed: dec.parts
           });
         }
       } else if (r.candidates && r.candidates.length) {

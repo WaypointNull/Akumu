@@ -57,6 +57,33 @@ const NSFW_CONTENT_PREFIX_STEMS = new Set([
 
 const NSFW_CONTENT_EXACT_TOKENS = new Set(['balls', 'sex', 'blood', 'ass', 'butt', 'anal']);
 
+// WORKAROUND: decompose auto-accepts a compound only when every part resolves exactly. But the LLM
+// builds junk compounds out of generic category words ("library_setting" -> library, setting) or vague
+// modifiers ("light_clothed" -> light, clothed). Those parts are too weak to stand alone, so a full
+// decomposition containing one of these is never auto-accepted — the compound goes to review instead.
+const DECOMPOSE_NOISE = new Set([
+  'setting',
+  'framing',
+  'lighting',
+  'light',
+  'pose',
+  'color',
+  'material',
+  'background',
+  'character',
+  'detailed',
+  'under',
+  'over',
+  'cold',
+  'weather',
+  'natural',
+  'bright',
+  'soft',
+  'calm',
+  'saddle',
+  'clothed'
+]);
+
 const TAG_LIST_URL =
   'https://raw.githubusercontent.com/DraconicDragon/dbr-e621-lists-archive/refs/heads/main/tag-lists/danbooru_e621_merged/danbooru_e621_merged_2026-04-01_pt20-ia-dd-ed-spc.csv';
 // Desktop builds run from a read-only install dir, so the data folder can be redirected via env.
@@ -208,6 +235,7 @@ module.exports = {
   TAG_CATEGORY_COPYRIGHT,
   NSFW_CONTENT_PREFIX_STEMS,
   NSFW_CONTENT_EXACT_TOKENS,
+  DECOMPOSE_NOISE,
   TAG_LIST_URL,
   TAG_FILE_PATH,
   REQUIRED_POSITIVE,

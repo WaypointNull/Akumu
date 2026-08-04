@@ -16,7 +16,8 @@ async function runSinglePipeline({ naturalLanguage, loraInput = '', modelTransla
     records: resolution.records,
     candidates,
     loraInput,
-    tagSet
+    tagSet,
+    naturalLanguage
   });
 
   const review = resolution.records

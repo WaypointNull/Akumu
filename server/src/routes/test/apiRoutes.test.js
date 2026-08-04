@@ -14,7 +14,7 @@ function fakeDeps({ llm } = {}) {
       decompose: () => null
     },
     llm: llm || {
-      ollamaGenerate: async () => 'a_tag, b_tag'
+      ollamaGenerate: async () => '1girl, a_tag'
     }
   };
 }

@@ -19,7 +19,7 @@ test('infer.translate parses raw tags and drops section labels', async () => {
   assert.deepEqual(result.tags, ['blue_hair', 'red_hair', 'sitting']);
 });
 
-test('infer.translate ignores mode and uses the same dense 20-40 tag prompt in every mode', async () => {
+test('infer.translate ignores mode and uses the same dense count-free prompt in every mode', async () => {
   const calls = [];
   const deps = {
     llm: {
@@ -34,10 +34,9 @@ test('infer.translate ignores mode and uses the same dense 20-40 tag prompt in e
   assert.equal(calls.length, 2);
   assert.equal(calls[0].system, calls[1].system);
   assert.equal(calls[0].prompt, calls[1].prompt);
-  assert.match(calls[0].prompt, /at least 20/);
-  assert.match(calls[0].prompt, /individual details/);
-  assert.match(calls[0].system, /smallest meaningful details/);
-  assert.match(calls[0].system, /existing Danbooru tags/);
+  assert.match(calls[0].prompt, /dense, complete tag list/);
+  assert.match(calls[0].prompt, /approximately 20-30/);
+  assert.match(calls[0].prompt, /Do not invent tags/);
   assert.ok(!calls[0].system.includes('compose descriptive compound tags'));
 });
 
@@ -61,6 +60,33 @@ test('infer.translate feeds LoRA tags to the LLM as context', async () => {
   assert.match(seenPrompt, /do NOT output these/);
   const requestIndex = seenPrompt.indexOf('Request:');
   assert.ok(requestIndex > -1);
+});
+
+test('infer.stripLoraEchoes drops tags that echo the LoRA trigger list', () => {
+  const lora = 'moridef, veil, tiara, long black sleeveless dress, cleavage';
+  const tags = ['moridef', 'veil', 'long_black_sleeveless_dress', 'cleavage', '1girl', 'holding'];
+  assert.deepEqual(infer.stripLoraEchoes(tags, lora), ['1girl', 'holding']);
+});
+
+test('infer.stripLoraEchoes leaves unrelated or partial tags alone', () => {
+  const lora = 'mochi (catgirl), bell collar';
+  const tags = ['red_flannel_jacket', 'bell', 'catgirl', 'holding_fishing_rod'];
+  assert.deepEqual(infer.stripLoraEchoes(tags, lora), tags);
+});
+
+test('infer.stripLoraEchoes is a no-op without lora input', () => {
+  const tags = ['veil', '1girl'];
+  assert.deepEqual(infer.stripLoraEchoes(tags, ''), tags);
+});
+
+test('infer.translate strips LoRA trigger echoes from the returned tags', async () => {
+  const deps = {
+    llm: {
+      ollamaGenerate: async () => 'veil, tiara, 1girl, blue_hair'
+    }
+  };
+  const result = await infer.translate('a girl', { model: 'test-model', loraInput: 'moridef, veil, tiara' }, deps);
+  assert.deepEqual(result.tags, ['1girl', 'blue_hair']);
 });
 
 test('infer.candidatesFromTagList filters, dedupes and caps at 120', () => {
@@ -159,6 +185,27 @@ test('retrieve.resolveAll decomposes compounds whose parts all resolve exactly',
   assert.deepEqual(byOriginal.dark_skinned_girl.extraTags, ['skinned', 'female']);
   assert.equal(byOriginal.confused_expression.status, 'unknown');
   assert.deepEqual(byOriginal.confused_expression.decomposed, ['confused']);
+});
+
+test('retrieve.resolveAll refuses to auto-accept decompositions whose parts are noise words', () => {
+  const resolver = (tag) =>
+    ['library', 'setting', 'light', 'clothed'].includes(tag)
+      ? { status: 'exact', tag }
+      : { status: 'unknown', tag, candidates: [] };
+  const decompose = (tag) =>
+    tag === 'library_setting'
+      ? { full: true, parts: ['library', 'setting'] }
+      : tag === 'light_clothed'
+        ? { full: true, parts: ['light', 'clothed'] }
+        : null;
+  const deps = { retrieval: { resolve: resolver, decompose } };
+
+  const { records } = retrieve.resolveAll(['library_setting', 'light_clothed'], 'request', deps);
+  assert.equal(records.length, 2);
+  for (const r of records) {
+    assert.notEqual(r.status, 'decomposed');
+    assert.ok(r.decomposed && r.decomposed.length > 0);
+  }
 });
 
 test('retrieve.resolveAll is safe when decomposition is unavailable', () => {
@@ -377,6 +424,60 @@ test('format.finalize keeps ambiguous tags when solid content outweighs the junk
   });
   assert.equal(lowContent, false);
   assert.ok(promptTags.includes('confused_expression'));
+});
+
+test('format.finalize withholds hallucinated tags that share no input words', () => {
+  const records = [
+    { original: '1girl', tag: '1girl', status: 'kept' },
+    { original: 'brown_hair', tag: 'brown_hair', status: 'kept' },
+    { original: 'wading', tag: 'wading', status: 'kept' },
+    { original: 'white_tank_top', tag: 'white_tank_top', status: 'kept' }
+  ];
+  const { promptTags, lowContent } = format.finalize({
+    records,
+    candidates: [],
+    loraInput: '',
+    tagSet: ALLOWED,
+    naturalLanguage: 'Test tag, please ignore'
+  });
+  assert.equal(lowContent, true);
+  assert.deepEqual(promptTags, []);
+});
+
+test('format.finalize keeps anchored tags even when other tags are hallucinated', () => {
+  const records = [
+    { original: 'cat', tag: 'cat', status: 'kept' },
+    { original: 'wading', tag: 'wading', status: 'kept' },
+    { original: 'mountain', tag: 'mountain', status: 'kept' },
+    { original: 'large_breasts', tag: 'large_breasts', status: 'kept' }
+  ];
+  const { promptTags, lowContent } = format.finalize({
+    records,
+    candidates: [],
+    loraInput: '',
+    tagSet: ALLOWED,
+    naturalLanguage: 'a cat'
+  });
+  assert.equal(lowContent, true);
+  assert.deepEqual(promptTags, ['cat']);
+});
+
+test('format.finalize does not flag well-anchored content as hallucinated', () => {
+  const records = [
+    { original: '1girl', tag: '1girl', status: 'kept' },
+    { original: 'kimono', tag: 'kimono', status: 'kept' },
+    { original: 'paper_lantern', tag: 'paper_lantern', status: 'kept' },
+    { original: 'fireworks', tag: 'fireworks', status: 'kept' }
+  ];
+  const { promptTags, lowContent } = format.finalize({
+    records,
+    candidates: [],
+    loraInput: '',
+    tagSet: ALLOWED,
+    naturalLanguage: 'a girl in a kimono holding a paper lantern at a festival with fireworks'
+  });
+  assert.equal(lowContent, false);
+  assert.deepEqual(promptTags, ['1girl', 'kimono', 'paper_lantern', 'fireworks']);
 });
 
 test('format.finalize produces summary and capped prompt tags', () => {
