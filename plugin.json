@@ -1,0 +1,39 @@
+{
+  "id": "akumu",
+  "name": "Akumu",
+  "version": "1.1.0",
+  "sdkVersion": 1,
+  "entry": {
+    "command": ["node", "server/server.js"],
+    "cwd": "."
+  },
+  "health": {
+    "path": "/api/health"
+  },
+  "io": {
+    "outputs": [{ "schema": "tag-list@1" }]
+  },
+  "theme": {
+    "tokens": {
+      "background": "348 20% 5%",
+      "foreground": "340 15% 94%",
+      "card": "348 18% 8%",
+      "card-foreground": "340 15% 94%",
+      "popover": "348 18% 8%",
+      "popover-foreground": "340 15% 94%",
+      "primary": "348 100% 82%",
+      "primary-foreground": "348 62% 15%",
+      "secondary": "340 12% 16%",
+      "secondary-foreground": "340 15% 90%",
+      "muted": "340 12% 15%",
+      "muted-foreground": "340 8% 62%",
+      "accent": "340 14% 18%",
+      "accent-foreground": "340 15% 92%",
+      "destructive": "0 72% 62%",
+      "destructive-foreground": "0 0% 98%",
+      "border": "340 14% 18%",
+      "input": "340 14% 20%",
+      "ring": "348 100% 80%"
+    }
+  }
+}
