@@ -11,7 +11,7 @@ async function runSinglePipeline({ naturalLanguage, loraInput = '', modelTransla
 
   const translated = await infer.translate(
     naturalLanguage,
-    { model: selectedModelTranslate, mode: selectedMode },
+    { model: selectedModelTranslate, mode: selectedMode, loraInput },
     deps
   );
   const candidates = infer.candidatesFromTagList(translated.tags, tagSet);
@@ -24,7 +24,9 @@ async function runSinglePipeline({ naturalLanguage, loraInput = '', modelTransla
   });
 
   const review = resolution.records
-    .filter((r) => r.status === 'ambiguous' || r.status === 'unknown' || r.status === 'creative')
+    .filter(
+      (r) => r.status === 'ambiguous' || r.status === 'unknown' || r.status === 'creative' || r.status === 'overlong'
+    )
     .map((r) => ({
       original: r.original,
       status: r.status,

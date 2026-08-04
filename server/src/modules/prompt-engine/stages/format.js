@@ -8,6 +8,9 @@ function finalize({ records, candidates, loraInput, tagSet }) {
   let validatedTags = dedupeKeepOrder(
     records
       .flatMap((r) => {
+        if (r.status === 'overlong') {
+          return [];
+        }
         if (r.status === 'kept' || r.status === 'ambiguous' || r.status === 'unknown' || r.status === 'creative') {
           return [r.tag];
         }

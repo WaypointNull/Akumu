@@ -5,7 +5,8 @@ const {
   REQUIRED_NEGATIVE,
   EXTRA_NEGATIVE,
   POSITIVE_FILLER,
-  STYLE_BOOSTERS
+  STYLE_BOOSTERS,
+  SANITY
 } = require('../../../config/constants');
 
 // Desktop builds run from a read-only install dir, so the log folder can be redirected via env.
@@ -49,6 +50,29 @@ function resolveAll(rawTags, naturalLanguage, deps, mode = 'strict') {
     } catch (error) {
       console.warn(`[resolve] error for "${original}":`, error.message);
       r = { status: 'unknown', tag: original, candidates: [] };
+    }
+    // WORKAROUND: LLM runaway loops invent mega-compounds that are never in the DB. Real series titles
+    // can exceed the underscore budget but exact-match, so only non-exact overlong tags get flagged.
+    const overlong = (original.match(/_/g) || []).length > SANITY.maxUnderscores;
+    if (overlong && r.status !== 'exact' && r.status !== 'alias') {
+      let dec = null;
+      try {
+        dec = decompose(original);
+      } catch (error) {
+        console.warn(`[decompose] error for "${original}":`, error.message);
+      }
+      records.push({
+        original,
+        tag: original,
+        status: 'overlong',
+        action: 'review',
+        candidates: r.candidates || [],
+        decomposed: dec ? dec.parts : []
+      });
+      console.warn(
+        `[overlong] "${original}" (${(original.match(/_/g) || []).length} underscores, not in DB) -> review`
+      );
+      continue;
     }
     if (r.status === 'exact') {
       records.push({ original, tag: r.tag, status: 'kept', action: 'kept' });

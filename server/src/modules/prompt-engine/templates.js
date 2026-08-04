@@ -29,9 +29,21 @@ function buildPass1System(mode = 'strict') {
   ].join(' ');
 }
 
-function buildPass1Prompt(naturalLanguage, mode = 'strict') {
+function buildLoraContext(loraInput) {
+  const tags = (loraInput || '')
+    .trim()
+    .split(/[\n,]+/)
+    .map((value) => value.trim())
+    .filter(Boolean);
+  if (tags.length === 0) return '';
+  return ['LoRA tags (context — do NOT output these, they are inserted separately):', tags.join(', '), ''].join('\n');
+}
+
+function buildPass1Prompt(naturalLanguage, mode = 'strict', loraInput = '') {
+  const loraContext = buildLoraContext(loraInput);
   if (mode === 'creative') {
     return [
+      loraContext,
       `Request: ${naturalLanguage}`,
       'Return approximately 60-120 comma-separated tags.',
       'Be generous: list every character, object, action, expression, article of clothing, color, pose, camera angle, setting, and lighting detail you can identify.',
@@ -39,6 +51,7 @@ function buildPass1Prompt(naturalLanguage, mode = 'strict') {
     ].join('\n');
   }
   return [
+    loraContext,
     `Request: ${naturalLanguage}`,
     'Return approximately 60-120 comma-separated tags.',
     'Be generous: list every character, object, action, expression, article of clothing, color, pose, camera angle, setting, and lighting detail you can identify.',

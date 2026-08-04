@@ -5,11 +5,11 @@ const { FORMAT } = require('../../../config/constants');
 
 const MODE_TEMPERATURE = { strict: 0.15, creative: 0.55 };
 
-async function translate(naturalLanguage, { model, mode = 'strict' }, deps) {
+async function translate(naturalLanguage, { model, mode = 'strict', loraInput = '' }, deps) {
   const raw = await deps.llm.ollamaGenerate(
     model,
     buildPass1System(mode),
-    buildPass1Prompt(naturalLanguage, mode),
+    buildPass1Prompt(naturalLanguage, mode, loraInput),
     MODE_TEMPERATURE[mode] ?? MODE_TEMPERATURE.strict
   );
   // WORKAROUND: the LLM tends to emit section headers ("Positive:", "Quality:") instead of pure tags; strip them.

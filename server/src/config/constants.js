@@ -182,6 +182,13 @@ const FORMAT = {
   promptTagCap: 85
 };
 
+// WORKAROUND: LLM runaway loops produce invented mega-compounds ("motorcycle_brake_fluid_thermal_...")
+// that are never in the DB. Real series titles can legitimately exceed this, but they exact-match, so
+// the cap only fires for tags that did NOT resolve to a known DB entry.
+const SANITY = {
+  maxUnderscores: 7
+};
+
 module.exports = {
   PORT,
   OLLAMA_BASE_URL,
@@ -199,5 +206,6 @@ module.exports = {
   JUNK_TOKENS,
   RETRIEVAL,
   DEFAULTS,
-  FORMAT
+  FORMAT,
+  SANITY
 };

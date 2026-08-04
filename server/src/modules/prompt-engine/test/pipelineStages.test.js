@@ -33,6 +33,28 @@ test('infer.translate uses the creative prompt when mode is creative', async () 
   assert.match(seenSystem, /compose descriptive compound tags/);
 });
 
+test('infer.translate feeds LoRA tags to the LLM as context', async () => {
+  let seenPrompt = '';
+  const deps = {
+    llm: {
+      ollamaGenerate: async (_model, _system, prompt) => {
+        seenPrompt = prompt;
+        return 'blue_hair';
+      }
+    }
+  };
+  await infer.translate(
+    'a knight with a torch',
+    { model: 'test-model', mode: 'strict', loraInput: '<lora:palworld_sekhmet:1.0>, <lora:my_character:0.8>' },
+    deps
+  );
+  assert.match(seenPrompt, /LoRA tags/);
+  assert.match(seenPrompt, /<lora:palworld_sekhmet:1.0>/);
+  assert.match(seenPrompt, /do NOT output these/);
+  const requestIndex = seenPrompt.indexOf('Request:');
+  assert.ok(requestIndex > -1);
+});
+
 test('infer.candidatesFromTagList filters, dedupes and caps at 120', () => {
   const rawTags = ['blue_hair', 'not_in_list', 'sitting'];
   const result = infer.candidatesFromTagList(rawTags, ALLOWED);
@@ -60,6 +82,52 @@ test('retrieve.resolveAll classifies known, exact, alias, rule and ambiguous tag
   assert.equal(byOriginal.xyz.status, 'ambiguous');
   assert.ok(fs.existsSync(logPath));
   fs.rmSync(logPath, { force: true });
+});
+
+test('retrieve.resolveAll routes invented overlong tags to review instead of keeping them', () => {
+  const resolver = (tag) => ({ status: 'unknown', tag, candidates: [{ tag: 'motorcycle', score: 0.9 }] });
+  const deps = { retrieval: { resolve: resolver } };
+  const { records } = retrieve.resolveAll(
+    ['motorcycle_brake_fluid_thermal_cycling_optimization_test_sim_run'],
+    'a biker girl',
+    deps
+  );
+  const record = records[0];
+  assert.equal(record.status, 'overlong');
+  assert.equal(record.action, 'review');
+  assert.equal(record.tag, 'motorcycle_brake_fluid_thermal_cycling_optimization_test_sim_run');
+  assert.equal(record.candidates.length, 1);
+});
+
+test('retrieve.resolveAll keeps exact overlong series titles as kept', () => {
+  const resolver = (tag) =>
+    tag === 'ore_no_imouto_ga_konna_ni_kawaii_wake_ga_nai' ? { status: 'exact', tag } : { status: 'unknown', tag };
+  const deps = { retrieval: { resolve: resolver } };
+  const { records } = retrieve.resolveAll(['ore_no_imouto_ga_konna_ni_kawaii_wake_ga_nai'], 'request', deps);
+  const record = records[0];
+  assert.equal(record.status, 'kept');
+  assert.equal(record.action, 'kept');
+});
+
+test('format.finalize excludes overlong tags from the output', () => {
+  const records = [
+    { original: 'blue_hair', tag: 'blue_hair', status: 'kept' },
+    {
+      original: 'motorcycle_brake_fluid_thermal_cycling_optimization_test_sim_run',
+      tag: 'motorcycle_brake_fluid_thermal_cycling_optimization_test_sim_run',
+      status: 'overlong'
+    }
+  ];
+  const { summary, promptTags, formatted } = format.finalize({
+    records,
+    candidates: [],
+    loraInput: '',
+    tagSet: ALLOWED
+  });
+  assert.match(summary, /flagged \(overlong, sent to review\)/);
+  assert.ok(!promptTags.includes('motorcycle_brake_fluid_thermal_cycling_optimization_test_sim_run'));
+  assert.ok(!formatted.finalText.includes('motorcycle_brake_fluid_thermal_cycling_optimization_test_sim_run'));
+  assert.ok(promptTags.includes('blue_hair'));
 });
 
 test('retrieve.resolveAll decomposes compounds whose parts all resolve exactly', () => {
