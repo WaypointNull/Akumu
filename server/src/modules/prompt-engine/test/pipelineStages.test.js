@@ -477,7 +477,7 @@ test('format.finalize does not flag well-anchored content as hallucinated', () =
     naturalLanguage: 'a girl in a kimono holding a paper lantern at a festival with fireworks'
   });
   assert.equal(lowContent, false);
-  assert.deepEqual(promptTags, ['1girl', 'kimono', 'paper_lantern', 'fireworks']);
+  assert.deepEqual(promptTags, ['1girl', 'paper_lantern', 'fireworks', 'kimono']);
 });
 
 test('format.finalize produces summary and capped prompt tags', () => {

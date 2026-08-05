@@ -2,6 +2,7 @@ const { dedupeKeepOrder } = require('../../../shared/list');
 const { isUsableTag, isSectionLabel } = require('../../tag-resolution');
 const { formatResolutionSummary, formatFinalOutput } = require('../formatter');
 const { FORMAT } = require('../../../config/constants');
+const { orderTags } = require('./order');
 
 // WORKAROUND: ambiguous/unknown tags are the junk bucket — tags the LLM made up that match nothing.
 // When the junk outweighs the solid content, shipping it to GLOBAL_POSITIVE just pollutes the prompt;
@@ -117,7 +118,9 @@ function finalize({ records, candidates, loraInput, tagSet, naturalLanguage = ''
     validatedTags = dedupeKeepOrder([...validatedTags, ...candidateSource]).slice(0, FORMAT.validatedCap);
   }
 
-  const promptTags = dedupeKeepOrder([...validatedTags, ...candidateSource])
+  // WORKAROUND: the model emits tags in arbitrary order; reorder to the canonical weight order
+  // before capping so the highest-weight categories survive the cap.
+  const promptTags = orderTags(dedupeKeepOrder([...validatedTags, ...candidateSource]))
     .filter((tag) => isUsableTag(tag))
     .slice(0, FORMAT.promptTagCap);
 

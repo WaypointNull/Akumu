@@ -1,6 +1,6 @@
 const express = require('express');
 const { DEFAULTS } = require('../config/constants');
-const { runSinglePipeline, formatFinalOutput } = require('../modules/prompt-engine');
+const { runSinglePipeline, formatFinalOutput, orderTags } = require('../modules/prompt-engine');
 const { ollamaStatus } = require('../modules/llm');
 const hubAdapter = require('../hubAdapter');
 
@@ -63,7 +63,8 @@ function createApiRoutes(deps) {
       return;
     }
 
-    res.json({ ok: true, ...formatFinalOutput({ promptTags: tags, loraInput }) });
+    // Reorder to the canonical weight order so an edited tag list re-renders the same way a fresh run does.
+    res.json({ ok: true, ...formatFinalOutput({ promptTags: orderTags(tags), loraInput }) });
   });
 
   return router;
